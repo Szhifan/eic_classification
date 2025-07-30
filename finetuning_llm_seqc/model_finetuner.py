@@ -69,9 +69,26 @@ class ModelFinetuner:
                   bias = 'none',
                   target_modules="all-linear",
                   task_type = "SEQ_CLS",
-                  max_seq_length = 4096
+                  max_seq_length = 4096,
+                  use_multi_gpu = False,
+                  ddp_find_unused_parameters = False
                   ):
         print('fine-tuning....')
+        
+        # Check GPU availability and setup multi-GPU training
+        device_count = torch.cuda.device_count()
+        print(f"Available GPUs: {device_count}")
+        
+        if use_multi_gpu and device_count > 1:
+            print(f"Using {device_count} GPUs for training")
+            # Adjust batch size for multi-GPU training
+            # The effective batch size will be per_device_train_batch_size * num_gpus
+            print(f"Effective batch size: {per_device_train_batch_size * device_count}")
+        elif device_count == 1:
+            print("Using single GPU for training")
+        else:
+            print("Using CPU for training")
+        
         # Enable gradient checkpointing to reduce memory usage during fine-tuning
         model.gradient_checkpointing_enable()
        
@@ -115,7 +132,12 @@ class ModelFinetuner:
                     load_best_model_at_end=True,
                     metric_for_best_model="eval_accuracy",
                     label_names = ['labels'],
-                    save_total_limit=2,) 
+                    save_total_limit=2,
+                    # Multi-GPU training arguments
+                    ddp_find_unused_parameters=ddp_find_unused_parameters,
+                    dataloader_pin_memory=True,               # Speed up data loading
+                    ddp_backend="nccl" if torch.cuda.is_available() else "gloo",  # Use NCCL for GPU, Gloo for CPU
+                    ) 
         
         trainer = Trainer(
                 model=model,
