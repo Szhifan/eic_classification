@@ -1,4 +1,4 @@
-from .modeling_llama import LlamaModel
+from .modeling_llama import LlamaModel, LlamaForSequenceClassification
 from .modeling_utils import *
 import transformers.models
 

@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 from transformers.cache_utils import Cache, StaticCache
-from transformers.modeling_outputs import BaseModelOutputWithPast
+from transformers.modeling_outputs import BaseModelOutputWithPast, SequenceClassifierOutput
 from transformers.models.llama.modeling_llama import (
     LlamaPreTrainedModel, 
     LlamaDecoderLayer, 
@@ -143,8 +143,11 @@ class LlamaModel(LlamaPreTrainedModel):
                 expanded_mask = attention_mask[:, None, None, :].expand(-1, 1, seq_length, -1)
                 causal_mask = causal_mask.masked_fill(expanded_mask == 0, float('-inf'))
 
-        bidir_attention_mask = get_noncausal_attention_mask(self, attention_mask, input_ids.shape)        
-        unsink_attention_mask = get_noncausal_attention_mask_0(self, attention_mask, input_ids.shape) if _is_mask0 else \
+        # Get input shape from either input_ids or inputs_embeds
+        input_shape = input_ids.shape if input_ids is not None else inputs_embeds.shape[:2]
+        
+        bidir_attention_mask = get_noncausal_attention_mask(self, attention_mask, input_shape)        
+        unsink_attention_mask = get_noncausal_attention_mask_0(self, attention_mask, input_shape) if _is_mask0 else \
                                 get_backward_attention_mask(self, attention_mask, inputs_embeds, output_attentions)
         
         hidden_states = inputs_embeds
@@ -268,3 +271,69 @@ class LlamaModel(LlamaPreTrainedModel):
         first_new_layer = self.config.num_hidden_layers
         for layer in range(first_new_layer, len(self.layers)):
             self.layers[layer].load_state_dict(self.layers[first_new_layer - 1].state_dict())
+
+
+class LlamaForSequenceClassification(LlamaPreTrainedModel):
+    """
+    Simple wrapper that adds a classification head to the custom LlamaModel
+    """
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        
+        # Use the custom LlamaModel as backbone
+        self.model = LlamaModel(config)
+        
+        # Simple classification head
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        
+        # Initialize weights
+        self.post_init()
+
+    def forward(
+        self,
+        input_ids: torch.LongTensor = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        **kwargs
+    ) -> Union[Tuple, SequenceClassifierOutput]:
+        
+        # Get model outputs
+        outputs = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            **kwargs
+        )
+        
+        # Get hidden states
+        hidden_states = outputs[0]  # (batch_size, seq_len, hidden_size)
+        
+        # Use last token's hidden state as sentence representation
+        # If there's no padding, use the last token; otherwise use the last non-padded token
+        if attention_mask is not None:
+            sequence_lengths = attention_mask.sum(dim=1) - 1  # Get actual sequence lengths
+            batch_indices = torch.arange(hidden_states.size(0), device=hidden_states.device)
+            pooled_output = hidden_states[batch_indices, sequence_lengths]
+        else:
+            pooled_output = hidden_states[:, -1]  # Use last token
+        
+        # Classification
+        logits = self.classifier(pooled_output)
+        
+        loss = None
+        if labels is not None:
+            if self.num_labels == 1:
+                # Regression
+                loss_fct = nn.MSELoss()
+                loss = loss_fct(logits.squeeze(), labels.squeeze())
+            else:
+                # Classification
+                loss_fct = nn.CrossEntropyLoss()
+                loss = loss_fct(logits, labels)
+        
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=outputs.hidden_states if hasattr(outputs, 'hidden_states') else None,
+            attentions=outputs.attentions if hasattr(outputs, 'attentions') else None,
+        )

@@ -8,7 +8,7 @@ The project now supports both standard Hugging Face models and the custom Llama 
 
 ## Files Modified/Created
 
-1. **`models/modeling_llama_classification.py`** - New classification wrapper for the custom Llama model
+1. **`models/modeling_llama.py`** - Custom Llama model with classification wrapper
 2. **`finetuning_llm_seqc/model_loader.py`** - Updated to support custom models
 3. **`finetune_EIC SeqC.py`** - Updated with new configuration options
 4. **`test_custom_model.py`** - Test script to verify integration

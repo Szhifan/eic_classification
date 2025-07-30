@@ -38,7 +38,7 @@ def create_model_dir(task_name, method, model_path, lora_r, lora_alpha, lora_dro
 def main():
     ############################################################################
 
-    wandb.init(project="Re3-Sci", entity="re3-sci", name="finetune_EIC_SeqC")
+    # wandb.init(project="Re3-Sci", entity="re3-sci", name="finetune_EIC_SeqC")
     # basic settings
     # <settings>
     task_name ='edit_intent_classification'
@@ -86,8 +86,8 @@ def main():
     ############################################################################
     # load model from path
     # <settings>
-    model_path = 'path/to/model'  # 请修改为您的模型路径
-    use_custom_llama = True  # 设置为 True 以使用自定义 Llama 模型
+    model_path = 'meta-llama/Llama-3.1-8B'  # 请修改为您的模型路径
+    use_custom_llama = False  # 设置为 True 以使用自定义 Llama 模型
     emb_type = None # transformation function for xnet and snet approaches, select from [''diff', diffABS', 'n-diffABS', 'n-o', 'n-diffABS-o'], None for SeqC and Gen
     #input type for the model, select from ['text_nl_on', 'text_st_on', 'inst_text_st_on', 'inst_text_nl_on'] 
     #for natural language input, structured input, instruction + structured input,  instruction + natural language input, respectively

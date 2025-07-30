@@ -7,7 +7,7 @@ from transformers import (
     AutoConfig,
     LlamaConfig
 )
-from models.modeling_llama_classification import LlamaForSequenceClassification
+from models.modeling_llama import LlamaForSequenceClassification
 from models.modeling_utils import BackwardSupportedArguments
 from transformers.modeling_outputs import SequenceClassifierOutput
 import os
@@ -51,46 +51,67 @@ class ModelLoader:
             # Use custom Llama model
             print("Using custom Llama model implementation...")
             
-            # Load configuration
-            config = LlamaConfig.from_pretrained(model_path)
-            
-            # Update config with backward supported arguments
-            backward_args = BackwardSupportedArguments(**model_args)
-            for key, value in backward_args.to_dict().items():
-                setattr(config, key, value)
-            
-            # Set classification specific config
-            config.num_labels = len(labels) if labels else 2
-            config.id2label = id2label
-            config.label2id = label2id
-            config.pad_token_id = tokenizer.pad_token_id
-            
-            # Load the custom model
-            model = LlamaForSequenceClassification(config)
-            
-            # Load pre-trained weights if available
-            if os.path.exists(model_path):
-                try:
-                    # Try to load state dict (handle potential key mismatches)
-                    model_file = os.path.join(model_path, "pytorch_model.bin")
-                    if os.path.exists(model_file):
-                        state_dict = torch.load(model_file, map_location="cpu")
-                        model.load_state_dict(state_dict, strict=False)
-                        print("Loaded pre-trained weights successfully")
-                    else:
-                        print("No pytorch_model.bin found, trying to load from pretrained...")
-                        # Alternative: try loading from HF hub
-                        try:
-                            pretrained_model = LlamaForSequenceClassification.from_pretrained(
-                                model_path, config=config, ignore_mismatched_sizes=True
-                            )
-                            model = pretrained_model
-                        except Exception as e2:
-                            print(f"Could not load from pretrained: {e2}")
-                            print("Using randomly initialized model...")
-                except Exception as e:
-                    print(f"Could not load pre-trained weights: {e}")
-                    print("Initializing with random weights...")
+            try:
+                # Load configuration
+                print("Loading configuration...")
+                config = LlamaConfig.from_pretrained(model_path)
+                
+                # Update config with backward supported arguments
+                print("Updating config with backward supported arguments...")
+                backward_args = BackwardSupportedArguments(**model_args)
+                for key, value in backward_args.to_dict().items():
+                    setattr(config, key, value)
+                
+                # Set classification specific config
+                config.num_labels = len(labels) if labels else 2
+                config.id2label = id2label
+                config.label2id = label2id
+                config.pad_token_id = tokenizer.pad_token_id
+                
+                print(f"Config setup complete. Num labels: {config.num_labels}")
+                
+                # Load the custom model
+                print("Initializing custom Llama model...")
+                model = LlamaForSequenceClassification(config)
+                print("Custom model initialized successfully")
+                
+                # Load pre-trained weights if available
+                if os.path.exists(model_path):
+                    try:
+                        print("Looking for pre-trained weights...")
+                        # Try to load state dict (handle potential key mismatches)
+                        model_file = os.path.join(model_path, "pytorch_model.bin")
+                        if os.path.exists(model_file):
+                            print("Loading pytorch_model.bin...")
+                            state_dict = torch.load(model_file, map_location="cpu")
+                            model.load_state_dict(state_dict, strict=False)
+                            print("Loaded pre-trained weights successfully")
+                        else:
+                            print("No pytorch_model.bin found, trying safetensors...")
+                            # Try to load safetensors format
+                            safetensors_file = os.path.join(model_path, "model.safetensors")
+                            if os.path.exists(safetensors_file):
+                                try:
+                                    from safetensors.torch import load_file
+                                    print("Loading safetensors...")
+                                    state_dict = load_file(safetensors_file)
+                                    model.load_state_dict(state_dict, strict=False)
+                                    print("Loaded safetensors weights successfully")
+                                except ImportError:
+                                    print("safetensors not available, using randomly initialized model...")
+                                except Exception as e3:
+                                    print(f"Could not load safetensors: {e3}")
+                                    print("Using randomly initialized model...")
+                            else:
+                                print("No model weights found, using randomly initialized model...")
+                    except Exception as e:
+                        print(f"Could not load pre-trained weights: {e}")
+                        print("Initializing with random weights...")
+                        
+            except Exception as e:
+                print(f"Error during custom model loading: {e}")
+                print("Falling back to standard model loading...")
+                raise e
         
         else:
             # Use standard AutoModel approach

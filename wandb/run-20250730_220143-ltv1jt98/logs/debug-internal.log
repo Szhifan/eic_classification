@@ -1,0 +1,17 @@
+{"time":"2025-07-30T22:01:43.520943+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.10","symlink path":"/Users/sunzhifan/Desktop/eic_classification/wandb/run-20250730_220143-ltv1jt98/logs/debug-core.log"}
+{"time":"2025-07-30T22:01:43.819823+02:00","level":"INFO","msg":"created new stream","id":"ltv1jt98"}
+{"time":"2025-07-30T22:01:43.819905+02:00","level":"INFO","msg":"stream: started","id":"ltv1jt98"}
+{"time":"2025-07-30T22:01:43.819926+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"ltv1jt98"}
+{"time":"2025-07-30T22:01:43.819946+02:00","level":"INFO","msg":"handler: started","stream_id":"ltv1jt98"}
+{"time":"2025-07-30T22:01:43.820179+02:00","level":"INFO","msg":"sender: started","stream_id":"ltv1jt98"}
+{"time":"2025-07-30T22:01:43.968148+02:00","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-07-30T22:01:43.968373+02:00","level":"ERROR","msg":"sender: upsertRun:","error":"failed to upsert bucket: returned error 404: {\"data\":{\"upsertBucket\":null},\"errors\":[{\"message\":\"entity re3-sci not found during upsertBucket\",\"path\":[\"upsertBucket\"]}]}"}
+{"time":"2025-07-30T22:01:45.002651+02:00","level":"INFO","msg":"stream: closing","id":"ltv1jt98"}
+{"time":"2025-07-30T22:01:45.014155+02:00","level":"ERROR","msg":"sender: upsertConfig: RunRecord is nil"}
+{"time":"2025-07-30T22:01:45.198526+02:00","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-07-30T22:01:45.19876+02:00","level":"ERROR","msg":"runfiles: CreateRunFiles returned error: returned error 404: {\"data\":{\"createRunFiles\":null},\"errors\":[{\"message\":\"entity re3-sci not found during createRunFiles\",\"path\":[\"createRunFiles\"]}]}"}
+{"time":"2025-07-30T22:01:45.199775+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-07-30T22:01:45.199808+02:00","level":"INFO","msg":"handler: closed","stream_id":"ltv1jt98"}
+{"time":"2025-07-30T22:01:45.199814+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"ltv1jt98"}
+{"time":"2025-07-30T22:01:45.199818+02:00","level":"INFO","msg":"sender: closed","stream_id":"ltv1jt98"}
+{"time":"2025-07-30T22:01:45.199883+02:00","level":"INFO","msg":"stream: closed","id":"ltv1jt98"}

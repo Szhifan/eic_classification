@@ -1,0 +1,16 @@
+2025-07-30 22:01:43,466 INFO    MainThread:21460 [wandb_setup.py:_flush():68] Current SDK version is 0.19.10
+2025-07-30 22:01:43,466 INFO    MainThread:21460 [wandb_setup.py:_flush():68] Configure stats pid to 21460
+2025-07-30 22:01:43,466 INFO    MainThread:21460 [wandb_setup.py:_flush():68] Loading settings from /Users/sunzhifan/.config/wandb/settings
+2025-07-30 22:01:43,466 INFO    MainThread:21460 [wandb_setup.py:_flush():68] Loading settings from /Users/sunzhifan/Desktop/eic_classification/wandb/settings
+2025-07-30 22:01:43,466 INFO    MainThread:21460 [wandb_setup.py:_flush():68] Loading settings from environment variables
+2025-07-30 22:01:43,467 INFO    MainThread:21460 [wandb_init.py:setup_run_log_directory():724] Logging user logs to /Users/sunzhifan/Desktop/eic_classification/wandb/run-20250730_220143-ltv1jt98/logs/debug.log
+2025-07-30 22:01:43,467 INFO    MainThread:21460 [wandb_init.py:setup_run_log_directory():725] Logging internal logs to /Users/sunzhifan/Desktop/eic_classification/wandb/run-20250730_220143-ltv1jt98/logs/debug-internal.log
+2025-07-30 22:01:43,467 INFO    MainThread:21460 [wandb_init.py:init():852] calling init triggers
+2025-07-30 22:01:43,467 INFO    MainThread:21460 [wandb_init.py:init():857] wandb.init called with sweep_config: {}
+config: {'_wandb': {}}
+2025-07-30 22:01:43,467 INFO    MainThread:21460 [wandb_init.py:init():893] starting backend
+2025-07-30 22:01:43,467 INFO    MainThread:21460 [wandb_init.py:init():897] sending inform_init request
+2025-07-30 22:01:43,513 INFO    MainThread:21460 [backend.py:_multiprocessing_setup():101] multiprocessing start_methods=spawn,fork,forkserver, using: spawn
+2025-07-30 22:01:43,514 INFO    MainThread:21460 [wandb_init.py:init():907] backend started and connected
+2025-07-30 22:01:43,522 INFO    MainThread:21460 [wandb_init.py:init():1002] updated telemetry
+2025-07-30 22:01:43,540 INFO    MainThread:21460 [wandb_init.py:init():1026] communicating run to backend with 90.0 second timeout
