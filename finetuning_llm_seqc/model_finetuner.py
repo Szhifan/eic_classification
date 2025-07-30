@@ -1,8 +1,7 @@
 import torch
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import numpy as np
-from trl import SFTTrainer
-from transformers import TrainingArguments                         
+from transformers import Trainer, TrainingArguments                         
 import evaluate
 accuracy = evaluate.load("accuracy")
 
@@ -105,10 +104,10 @@ class ModelFinetuner:
                     max_grad_norm=0.3,                        # max gradient norm based on QLoRA paper
                     max_steps=-1,
                     warmup_ratio=0.03,                        # warmup ratio based on QLoRA paper
-                    group_by_length=True,
+                    group_by_length=False,
                     lr_scheduler_type="cosine",               # use cosine learning rate scheduler
-                    report_to="wandb",                  # report metrics to wandb
-                    evaluation_strategy="epoch",              # save checkpoint every epoch
+                    # report_to="wandb",                  # report metrics to wandb
+                    eval_strategy="epoch",              # save checkpoint every epoch
                     save_strategy="epoch",
                     gradient_checkpointing=True,              # use gradient checkpointing to save memory
                     optim="paged_adamw_32bit",
@@ -118,22 +117,13 @@ class ModelFinetuner:
                     label_names = ['labels'],
                     save_total_limit=2,) 
         
-        trainer = SFTTrainer(
+        trainer = Trainer(
                 model=model,
                 args=args,
                 train_dataset=train_ds,
                 eval_dataset=val_ds,
                 compute_metrics=compute_metrics,
-                peft_config=peft_config,
-                dataset_text_field="text",
-                tokenizer=tokenizer,
-                packing=False,
-                max_seq_length=max_seq_length,
                 data_collator = collate_fn,
-                dataset_kwargs={
-                    "add_special_tokens": False,
-                    "append_concat_token": False,
-                }
             )
        
         model.config.use_cache = False
