@@ -153,7 +153,7 @@ class BackwardSupportedArguments:
 
         return "_".join([""] + suffix)
 
-def get_model(model_args, config, MODEL_TYPE=AutoModel):
+def get_custom_model(model_args, config, MODEL_TYPE=AutoModel):
     is_keyword_present = any(keyword in model_args.model_name_or_path.lower() for keyword in DECODER_MODEL_TYPES)
 
     torch_dtype = (

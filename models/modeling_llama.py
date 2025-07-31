@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple, Union
 import torch
 from torch import nn
 
-from transformers.cache_utils import Cache, StaticCache
+from transformers.cache_utils import Cache
 from transformers.modeling_outputs import BaseModelOutputWithPast, SequenceClassifierOutput
 from transformers.models.llama.modeling_llama import (
     LlamaPreTrainedModel, 
@@ -12,8 +12,13 @@ from transformers.models.llama.modeling_llama import (
     LlamaRMSNorm, 
     LlamaRotaryEmbedding,
 )
-from transformers.modeling_attn_mask_utils import AttentionMaskConverter
-from .modeling_utils import *
+from .modeling_utils import (
+    get_noncausal_attention_mask,
+    get_noncausal_attention_mask_0,
+    get_backward_attention_mask,
+    use_res_connect,
+    flip_tensor,
+)
 from functools import partial
 
 
@@ -210,10 +215,16 @@ class LlamaModel(LlamaPreTrainedModel):
             hidden_states = flip_tensor(layer_outputs[0], reverse_flag)
 
             if use_cache:
-                next_decoder_cache = layer_outputs[2 if output_attentions else 1]
+                # Check if we have enough elements in layer_outputs
+                if len(layer_outputs) > (2 if output_attentions else 1):
+                    next_decoder_cache = layer_outputs[2 if output_attentions else 1]
+                else:
+                    next_decoder_cache = None
 
             if output_attentions:
-                all_self_attns += (layer_outputs[1],)
+                # Check if we have attention outputs
+                if len(layer_outputs) > 1:
+                    all_self_attns += (layer_outputs[1],)
         
         forward_hidden_states = h1 if _is_intera else h2
         for i in range(self.bidir_layers, self.config.num_hidden_layers if _is_intera else 0):
@@ -278,6 +289,7 @@ class LlamaForSequenceClassification(LlamaPreTrainedModel):
     Simple wrapper that adds a classification head to the custom LlamaModel
     """
     def __init__(self, config):
+        print("Using custom LlamaForSequenceClassification with LlamaModel as backbone")
         super().__init__(config)
         self.num_labels = config.num_labels
         
@@ -295,14 +307,12 @@ class LlamaForSequenceClassification(LlamaPreTrainedModel):
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
         labels: Optional[torch.LongTensor] = None,
-        **kwargs
     ) -> Union[Tuple, SequenceClassifierOutput]:
         
         # Get model outputs
         outputs = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            **kwargs
         )
         
         # Get hidden states
@@ -337,3 +347,5 @@ class LlamaForSequenceClassification(LlamaPreTrainedModel):
             hidden_states=outputs.hidden_states if hasattr(outputs, 'hidden_states') else None,
             attentions=outputs.attentions if hasattr(outputs, 'attentions') else None,
         )
+if __name__ == "__main__":
+    model= LlamaForSequenceClassification.from_pretrained("meta-llama/Llama-3.1-8B")

@@ -8,9 +8,10 @@ from transformers import (
     LlamaConfig
 )
 from models.modeling_llama import LlamaForSequenceClassification
-from models.modeling_utils import BackwardSupportedArguments
+from models.modeling_utils import BackwardSupportedArguments, get_custom_model
 from transformers.modeling_outputs import SequenceClassifierOutput
 import os
+
 
 class ModelLoader:
     def __init__(self) -> None:
@@ -59,8 +60,17 @@ class ModelLoader:
                 # Update config with backward supported arguments
                 print("Updating config with backward supported arguments...")
                 backward_args = BackwardSupportedArguments(**model_args)
+                # Add required attributes for get_custom_model
+                setattr(backward_args, 'model_name_or_path', model_path)
+                setattr(backward_args, 'torch_dtype', getattr(backward_args, 'torch_dtype', 'auto'))
+                setattr(backward_args, 'trust_remote_code', getattr(backward_args, 'trust_remote_code', False))
+                setattr(backward_args, 'cache_dir', getattr(backward_args, 'cache_dir', None))
+                setattr(backward_args, 'model_revision', getattr(backward_args, 'model_revision', None))
+                setattr(backward_args, 'token', getattr(backward_args, 'token', None))
+                
                 for key, value in backward_args.to_dict().items():
-                    setattr(config, key, value)
+                    if hasattr(config, key):
+                        setattr(config, key, value)
                 
                 # Set classification specific config
                 config.num_labels = len(labels) if labels else 2
@@ -70,43 +80,10 @@ class ModelLoader:
                 
                 print(f"Config setup complete. Num labels: {config.num_labels}")
                 
-                # Load the custom model
-                print("Initializing custom Llama model...")
-                model = LlamaForSequenceClassification(config)
-                print("Custom model initialized successfully")
-                
-                # Load pre-trained weights if available
-                if os.path.exists(model_path):
-                    try:
-                        print("Looking for pre-trained weights...")
-                        # Try to load state dict (handle potential key mismatches)
-                        model_file = os.path.join(model_path, "pytorch_model.bin")
-                        if os.path.exists(model_file):
-                            print("Loading pytorch_model.bin...")
-                            state_dict = torch.load(model_file, map_location="cpu")
-                            model.load_state_dict(state_dict, strict=False)
-                            print("Loaded pre-trained weights successfully")
-                        else:
-                            print("No pytorch_model.bin found, trying safetensors...")
-                            # Try to load safetensors format
-                            safetensors_file = os.path.join(model_path, "model.safetensors")
-                            if os.path.exists(safetensors_file):
-                                try:
-                                    from safetensors.torch import load_file
-                                    print("Loading safetensors...")
-                                    state_dict = load_file(safetensors_file)
-                                    model.load_state_dict(state_dict, strict=False)
-                                    print("Loaded safetensors weights successfully")
-                                except ImportError:
-                                    print("safetensors not available, using randomly initialized model...")
-                                except Exception as e3:
-                                    print(f"Could not load safetensors: {e3}")
-                                    print("Using randomly initialized model...")
-                            else:
-                                print("No model weights found, using randomly initialized model...")
-                    except Exception as e:
-                        print(f"Could not load pre-trained weights: {e}")
-                        print("Initializing with random weights...")
+                # Load the custom model using the designated function
+                print("Initializing custom Llama model with get_custom_model function...")
+                model = get_custom_model(backward_args, config, LlamaForSequenceClassification)
+                print("Custom model loaded successfully")
                         
             except Exception as e:
                 print(f"Error during custom model loading: {e}")
@@ -129,6 +106,6 @@ class ModelLoader:
         # Handle Mistral specific configuration
         if 'Mistral' in model_path:
             model.config.sliding_window = 4096
-            
+        setattr(model, 'accepts_loss_kwargs', False)  # Ensure Trainer does not pass unexpected kwargs
         return model, tokenizer
     
