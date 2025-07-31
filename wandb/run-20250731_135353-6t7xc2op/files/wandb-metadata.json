@@ -1,0 +1,31 @@
+{
+  "os": "Linux-4.4.0-19041-Microsoft-x86_64-with-glibc2.39",
+  "python": "CPython 3.12.9",
+  "startedAt": "2025-07-31T11:53:53.878877Z",
+  "program": "/home/szhifan/eic_classification/ft.py",
+  "codePath": "ft.py",
+  "git": {
+    "remote": "https://github.com/Szhifan/eic_classification.git",
+    "commit": "6ecbddbf97cdf8f8e624555bcbff26d62644e74e"
+  },
+  "email": "sunzhifan233@gmail.com",
+  "root": "/home/szhifan/eic_classification",
+  "host": "nbw-f-469",
+  "executable": "/home/szhifan/miniconda3/envs/work/bin/python",
+  "codePathLocal": "ft.py",
+  "cpu_count": 10,
+  "cpu_count_logical": 12,
+  "disk": {
+    "/": {
+      "total": "254712164352",
+      "used": "225646243840"
+    }
+  },
+  "memory": {
+    "total": "16800550912"
+  },
+  "cpu": {
+    "count": 10,
+    "countLogical": 12
+  }
+}

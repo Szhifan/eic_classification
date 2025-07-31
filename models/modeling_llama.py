@@ -168,7 +168,7 @@ class LlamaModel(LlamaPreTrainedModel):
             hidden_states = flip_tensor(hidden_states, reverse_flag)
 
 
-            layer_outputs = decoder_layer(
+            hidden_states = decoder_layer(
                 hidden_states,
                 attention_mask=layer_mask,
                 position_ids=position_ids,
@@ -176,20 +176,10 @@ class LlamaModel(LlamaPreTrainedModel):
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
             )
-            
-            hidden_states = flip_tensor(layer_outputs[0], reverse_flag)
 
-            if use_cache:
-                # Check if we have enough elements in layer_outputs
-                if len(layer_outputs) > 2:
-                    next_decoder_cache = layer_outputs[2]
-                else:
-                    next_decoder_cache = None
+            hidden_states = flip_tensor(hidden_states, reverse_flag)
 
 
-            if len(layer_outputs) > 1:
-                all_self_attns += (layer_outputs[1],)
-    
         forward_hidden_states = h1 if _is_intera else h2
         for i in range(self.bidir_layers, self.config.num_hidden_layers if _is_intera else 0):
             decoder_layer = self.layers[i]

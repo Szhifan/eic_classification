@@ -1,0 +1,15 @@
+{"time":"2025-07-31T13:31:36.7274376+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/szhifan/eic_classification/wandb/run-20250731_133136-mozb418e/logs/debug-core.log"}
+{"time":"2025-07-31T13:31:37.9390669+02:00","level":"INFO","msg":"created new stream","id":"mozb418e"}
+{"time":"2025-07-31T13:31:37.9391325+02:00","level":"INFO","msg":"stream: started","id":"mozb418e"}
+{"time":"2025-07-31T13:31:37.9391918+02:00","level":"INFO","msg":"sender: started","stream_id":"mozb418e"}
+{"time":"2025-07-31T13:31:37.9391778+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"mozb418e"}
+{"time":"2025-07-31T13:31:37.9393137+02:00","level":"INFO","msg":"handler: started","stream_id":"mozb418e"}
+{"time":"2025-07-31T13:31:38.1979353+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-07-31T13:31:41.162332+02:00","level":"INFO","msg":"stream: closing","id":"mozb418e"}
+{"time":"2025-07-31T13:31:41.1623987+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-07-31T13:31:41.1625557+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-07-31T13:31:42.0544464+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-07-31T13:31:42.2666554+02:00","level":"INFO","msg":"handler: closed","stream_id":"mozb418e"}
+{"time":"2025-07-31T13:31:42.2667148+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"mozb418e"}
+{"time":"2025-07-31T13:31:42.2670271+02:00","level":"INFO","msg":"sender: closed","stream_id":"mozb418e"}
+{"time":"2025-07-31T13:31:42.2678312+02:00","level":"INFO","msg":"stream: closed","id":"mozb418e"}
