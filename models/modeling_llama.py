@@ -20,10 +20,8 @@ from .modeling_utils import (
     flip_tensor,
 )
 from functools import partial
-from transformers.utils import TransformersKwargs, logging
-from transformers.processing_utils import Unpack
-from transformers.cache_utils import DynamicCache
-from transformers.masking_utils import create_causal_mask
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -87,52 +85,75 @@ class LlamaModel(LlamaPreTrainedModel):
 
     def forward(
         self,
-        input_ids: Optional[torch.LongTensor] = None,
+        input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[Cache] = None,
+        past_key_values: Optional[Union[Cache, List[torch.FloatTensor]]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
-        cache_position: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
-        **kwargs: Unpack[TransformersKwargs],
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        cache_position: Optional[torch.LongTensor] = None,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
         if (input_ids is None) ^ (inputs_embeds is not None):
-            raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
+            raise ValueError(
+                "You cannot specify both input_ids and inputs_embeds at the same time, and must specify either one"
+            )
+
+        if self.gradient_checkpointing and self.training and use_cache:
+            use_cache = False
 
         if inputs_embeds is None:
-            inputs_embeds: torch.Tensor = self.embed_tokens(input_ids)
+            inputs_embeds = self.embed_tokens(input_ids)
 
-        if use_cache and past_key_values is None:
-            past_key_values = DynamicCache()
+        return_legacy_cache = False
 
         if cache_position is None:
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
-            cache_position: torch.Tensor = torch.arange(
+            cache_position = torch.arange(
                 past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
             )
-
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0)
-        return_legacy_cache = False
+
         _is_flash_attn = self.config._attn_implementation == "flash_attention_2"
         _is_intera = self.architecture in {'INTER', 'EXTRA'}
         _is_mask0 = self.mask_type == "MASK0"
 
-        causal_mask = create_causal_mask(
-            config=self.config,
-            input_embeds=inputs_embeds,
-            attention_mask=attention_mask,
-            cache_position=cache_position,
-            past_key_values=past_key_values,
-            position_ids=position_ids,
-        )
+        # Create causal mask
+        if _is_flash_attn:
+            if attention_mask is not None and 0.0 in attention_mask:
+                causal_mask = attention_mask
+            else:
+                causal_mask = None
+        else:
+            # Create a simple causal mask
+            seq_length = inputs_embeds.shape[1]
+            causal_mask = torch.triu(
+                torch.full((seq_length, seq_length), float('-inf'), dtype=inputs_embeds.dtype, device=inputs_embeds.device),
+                diagonal=1
+            )
+            causal_mask = causal_mask[None, None, :, :].expand(inputs_embeds.shape[0], 1, -1, -1)
+            
+            if attention_mask is not None:
+                # Apply padding mask
+                expanded_mask = attention_mask[:, None, None, :].expand(-1, 1, seq_length, -1)
+                causal_mask = causal_mask.masked_fill(expanded_mask == 0, float('-inf'))
 
         # Get input shape from either input_ids or inputs_embeds
         input_shape = input_ids.shape if input_ids is not None else inputs_embeds.shape[:2]
         
         bidir_attention_mask = get_noncausal_attention_mask(self, attention_mask, input_shape)        
         unsink_attention_mask = get_noncausal_attention_mask_0(self, attention_mask, input_shape) if _is_mask0 else \
-                                get_backward_attention_mask(self, attention_mask, inputs_embeds, True)
+                                get_backward_attention_mask(self, attention_mask, inputs_embeds, output_attentions)
         
         hidden_states = inputs_embeds
         # create position embeddings to be shared across the decoder layers
@@ -140,8 +161,8 @@ class LlamaModel(LlamaPreTrainedModel):
         
         # decoder layers
         h1, h2 = None, 0
-        all_hidden_states = () 
-        all_self_attns = () 
+        all_hidden_states = () if output_hidden_states else None
+        all_self_attns = () if output_attentions else None
         next_decoder_cache = None
         for i in range(self.num_hidden_layers):
             decoder_layer = self.layers[i]
@@ -156,8 +177,8 @@ class LlamaModel(LlamaPreTrainedModel):
             
             reverse_flag = is_unsink and _is_flash_attn and not _is_mask0
            
-    
-            all_hidden_states += (hidden_states,)
+            if output_hidden_states:
+                all_hidden_states += (hidden_states,)
 
             if i == self.bidir_layers:
                 h1 = hidden_states
@@ -167,19 +188,44 @@ class LlamaModel(LlamaPreTrainedModel):
 
             hidden_states = flip_tensor(hidden_states, reverse_flag)
 
+            if self.gradient_checkpointing and self.training:
+                layer_outputs = self._gradient_checkpointing_func(
+                    decoder_layer.__call__,
+                    hidden_states,
+                    layer_mask,
+                    position_ids,
+                    past_key_values,
+                    output_attentions,
+                    use_cache,
+                    cache_position,
+                    position_embeddings,
+                )
+            else:
+                layer_outputs = decoder_layer(
+                    hidden_states,
+                    attention_mask=layer_mask,
+                    position_ids=position_ids,
+                    past_key_value=past_key_values,
+                    output_attentions=output_attentions,
+                    use_cache=use_cache,
+                    cache_position=cache_position,
+                    position_embeddings=position_embeddings,
+                )
+            
+            hidden_states = flip_tensor(layer_outputs[0], reverse_flag)
 
-            hidden_states = decoder_layer(
-                hidden_states,
-                attention_mask=layer_mask,
-                position_ids=position_ids,
-                past_key_value=past_key_values,
-                cache_position=cache_position,
-                position_embeddings=position_embeddings,
-            )
+            if use_cache:
+                # Check if we have enough elements in layer_outputs
+                if len(layer_outputs) > (2 if output_attentions else 1):
+                    next_decoder_cache = layer_outputs[2 if output_attentions else 1]
+                else:
+                    next_decoder_cache = None
 
-            hidden_states = flip_tensor(hidden_states, reverse_flag)
-
-
+            if output_attentions:
+                # Check if we have attention outputs
+                if len(layer_outputs) > 1:
+                    all_self_attns += (layer_outputs[1],)
+        
         forward_hidden_states = h1 if _is_intera else h2
         for i in range(self.bidir_layers, self.config.num_hidden_layers if _is_intera else 0):
             decoder_layer = self.layers[i]
@@ -201,13 +247,15 @@ class LlamaModel(LlamaPreTrainedModel):
 
         hidden_states = self.norm(hidden_states)
         # add hidden states from the last decoder layer
-
-        all_hidden_states += (hidden_states,)
+        if output_hidden_states:
+            all_hidden_states += (hidden_states,)
 
         next_cache = next_decoder_cache if use_cache else None
         if return_legacy_cache:
             next_cache = next_cache.to_legacy_cache()
 
+        if not return_dict:
+            return tuple(v for v in [hidden_states, next_cache, all_hidden_states, all_self_attns] if v is not None)
         return BaseModelOutputWithPast(
             last_hidden_state=hidden_states,
             past_key_values=next_cache,

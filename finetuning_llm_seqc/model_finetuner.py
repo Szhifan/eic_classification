@@ -1,4 +1,5 @@
 import torch
+from torch.nn.utils.rnn import pad_sequence
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import numpy as np
 from transformers import Trainer, TrainingArguments                         
@@ -6,21 +7,44 @@ import evaluate
 accuracy = evaluate.load("accuracy")
 
 
-def collate_fn(examples, device=None):
+from torch.nn.utils.rnn import pad_sequence
+
+def collate_fn(examples, device=None, tokenizer=None):
+    # Extract input_ids and labels from examples
+    batch_input_ids = []
+    batch_labels = []
+    
     for example in examples:
-        example['input_ids'] = torch.as_tensor(example['input_ids_text'])
-        example['attention_mask'] = torch.as_tensor(example['attention_mask_text'])
-        example['label'] = torch.as_tensor(example['label'])
-    input_ids = torch.stack([torch.as_tensor(example["input_ids"]) for example in examples])
-    attention_masks = torch.stack([torch.as_tensor(example["attention_mask"]) for example in examples])
-    input_ids = torch.squeeze(input_ids, dim=1)
-    attention_masks = torch.squeeze(attention_masks, dim=1)
-    labels = torch.stack([torch.as_tensor(example["label"]) for example in examples])
+        # Convert to tensors if they're not already
+        if isinstance(example['input_ids_text'], list):
+            input_ids = torch.as_tensor(example['input_ids_text'])
+        else:
+            input_ids = example['input_ids_text']
+        
+        batch_input_ids.append(input_ids)
+        batch_labels.append(torch.as_tensor(example['label']))
+    
+    # Get pad_token_id from tokenizer, default to 0 if not available
+    pad_token_id = getattr(tokenizer, 'pad_token_id', 0) if tokenizer else 0
+    
+    # Use pad_sequence for efficient padding
+    input_ids = pad_sequence(batch_input_ids, batch_first=True, padding_value=pad_token_id)
+    
+    # Create attention masks (1 for real tokens, 0 for padding)
+    attention_masks = []
+    for i, original_length in enumerate([len(ids) for ids in batch_input_ids]):
+        mask = torch.zeros(input_ids.size(1), dtype=torch.long)
+        mask[:original_length] = 1
+        attention_masks.append(mask)
+    
+    attention_masks = torch.stack(attention_masks)
+    labels = torch.stack(batch_labels)
 
     if device is not None:
         input_ids = input_ids.to(device)
         attention_masks = attention_masks.to(device)
         labels = labels.to(device)
+    
     return {"input_ids": input_ids, 
             "attention_mask": attention_masks,
             "labels": labels}
@@ -135,13 +159,17 @@ class ModelFinetuner:
                     save_total_limit=2,
                     ) 
         
+        # Create a partial function to pass tokenizer to collate_fn
+        from functools import partial
+        data_collator = partial(collate_fn, tokenizer=tokenizer)
+        
         trainer = Trainer(
                 model=model,
                 args=args,
                 train_dataset=train_ds,
                 eval_dataset=val_ds,
                 compute_metrics=compute_metrics,
-                data_collator = collate_fn,
+                data_collator=data_collator,
             )
        
         model.config.use_cache = False

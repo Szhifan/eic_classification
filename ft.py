@@ -2,12 +2,12 @@ import os
 import shutil
 import pandas as pd
 from datasets import Dataset
+from datasets import enable_caching
 from finetuning_llm_seqc.model_loader import ModelLoader
 from finetuning_llm_seqc.data_preprocessor import DataPreprocessor
 from finetuning_llm_seqc.model_finetuner import ModelFinetuner
 from finetuning_llm_seqc.evaluater import Evaluater
 import wandb
-
 
 def create_model_dir(task_name, method, model_path, lora_r, lora_alpha, lora_dropout, learning_rate, 
                      per_device_train_batch_size, train_epochs, train_type, test_type,
@@ -36,6 +36,9 @@ def create_model_dir(task_name, method, model_path, lora_r, lora_alpha, lora_dro
         
 
 def main():
+    # Enable dataset caching for better performance
+    enable_caching()
+    
     ############################################################################
 
     # wandb.init(project="Re3-Sci", entity="re3-sci", name="finetune_EIC_SeqC")
