@@ -133,10 +133,6 @@ class ModelFinetuner:
                     metric_for_best_model="eval_accuracy",
                     label_names = ['labels'],
                     save_total_limit=2,
-                    # Multi-GPU training arguments
-                    ddp_find_unused_parameters=ddp_find_unused_parameters,
-                    dataloader_pin_memory=True,               # Speed up data loading
-                    ddp_backend="nccl" if torch.cuda.is_available() else "gloo",  # Use NCCL for GPU, Gloo for CPU
                     ) 
         
         trainer = Trainer(

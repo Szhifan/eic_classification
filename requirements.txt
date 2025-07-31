@@ -14,4 +14,4 @@ torchvision
 tqdm
 transformers
 trl
-wandb
+wandb 
