@@ -16,11 +16,11 @@ def collate_fn(examples, device=None, tokenizer=None):
     for example in examples:
         # Convert to tensors if they're not already
 
-        input_ids = torch.as_tensor(example['input_ids_text'])
-        att_mask = torch.as_tensor(example['attention_mask_text'])
+        input_ids = torch.tensor(example['input_ids_text'], dtype=torch.long)
+        att_mask = torch.tensor(example['attention_mask_text'], dtype=torch.long)
         batch_input_ids.append(input_ids)
         batch_attention_masks.append(att_mask) 
-    labels = torch.stack([torch.as_tensor(example["label"]) for example in examples]) 
+    labels = torch.stack([torch.tensor(example["label"], dtype=torch.long) for example in examples]) 
     # Get pad_token_id from tokenizer, ensure it's never None
     if tokenizer and hasattr(tokenizer, 'pad_token_id') and tokenizer.pad_token_id is not None:
         pad_token_id = tokenizer.pad_token_id
