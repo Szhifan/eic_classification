@@ -17,12 +17,13 @@ class Evaluater:
         tokenizer = AutoTokenizer.from_pretrained(str(finetuned_model_dir))
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = 'right'
-        compute_dtype = getattr(torch, "float16")   
+        compute_dtype = getattr(torch, "float32")  # Use float32 for stability in evaluation
         model =  AutoPeftModelForSequenceClassification.from_pretrained(
                         str(finetuned_model_dir)+'/',
                         torch_dtype=compute_dtype,
                         return_dict=False,
                         low_cpu_mem_usage=True,
+                        torch_dtype=torch.float16, 
                         device_map='auto',
                         num_labels = len(labels),
                     )
@@ -31,7 +32,9 @@ class Evaluater:
         model.config.label2id = label2id
 
         model = model.merge_and_unload()
-        model.to('cuda:0')
+        model.to(dtype=torch.float16)
+        model.to('cuda')
+        # Ensure model is in float32 for stable evaluation
         model.config.pad_token_id = tokenizer.pad_token_id
        
         if 'mistral' in str(finetuned_model_dir):
@@ -39,16 +42,28 @@ class Evaluater:
         
         return model, tokenizer
 
-    def predict(self, test, model, id2label, output_dir):
+    def predict(self, test, model, tokenizer, id2label, output_dir):
         eval_file = output_dir / "eval_pred.csv"
         print('eval_file', eval_file)
         if eval_file.exists():
             eval_file.unlink()
         
+        # Check model's data type by examining the first parameter
+        model_dtype = next(model.parameters()).dtype
+        
         for i in tqdm(range(len(test))):
-            inputs = collate_fn([test[i]], device='cuda:0')
+            inputs = collate_fn([test[i]], device='cuda', tokenizer=tokenizer)
+            
+            # Debug: print model and input dtypes
+            print(f"model_dtype {model_dtype}")
+            print(f"input dtypes: {[(k, v.dtype) for k, v in inputs.items()]}")
+            
+            # Don't convert input_ids and attention_mask (they should stay as integers)
+            # Only convert floating point tensors if needed, but since we're using float32 model,
+            # this shouldn't be necessary
+            
             with torch.no_grad():
-                logits = model(**inputs, return_dict=True).logits.to('cuda:0')
+                logits = model(**inputs, return_dict=True).logits.to('cuda')
                
             predicted_class_id = logits.argmax().item()
             pred = id2label[int(predicted_class_id)]
@@ -89,7 +104,7 @@ class Evaluater:
         if output_dir is None:
                 output_dir = Path(model_dir)
         if do_predict:
-            self.predict(test, model, id2label, output_dir)
+            self.predict(test, model, tokenizer, id2label, output_dir)
         end_time = pd.Timestamp.now()
         inference_time = end_time - start_time
         inference_time = inference_time.total_seconds()

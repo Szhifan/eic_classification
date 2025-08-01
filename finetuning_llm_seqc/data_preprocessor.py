@@ -44,7 +44,13 @@ class DataPreprocessor:
         label = self.label2id[sample['label']]
         sample["label"] = label
 
-        sample['input_ids_text'] = self.tokenizer.encode_plus(sample["text"], max_length=self.max_length, truncation=True, return_tensors="pt")["input_ids"]
-        sample['attention_mask_text'] = self.tokenizer.encode_plus(sample["text"], max_length=self.max_length, truncation=True, return_tensors="pt")["attention_mask"]
+        encoded = self.tokenizer(
+            sample["text"],
+            truncation=True,
+            max_length=self.max_length,
+            return_tensors='pt'
+        )
+        sample['input_ids_text'] = encoded["input_ids"]
+        sample['attention_mask_text'] = encoded["attention_mask"]
         return sample
     

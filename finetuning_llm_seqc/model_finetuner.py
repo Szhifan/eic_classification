@@ -12,33 +12,27 @@ from torch.nn.utils.rnn import pad_sequence
 def collate_fn(examples, device=None, tokenizer=None):
     # Extract input_ids and labels from examples
     batch_input_ids = []
-    batch_labels = []
-    
+    batch_attention_masks = []
     for example in examples:
         # Convert to tensors if they're not already
-        if isinstance(example['input_ids_text'], list):
-            input_ids = torch.as_tensor(example['input_ids_text'])
-        else:
-            input_ids = example['input_ids_text']
-        
+
+        input_ids = torch.as_tensor(example['input_ids_text'])
+        att_mask = torch.as_tensor(example['attention_mask_text'])
         batch_input_ids.append(input_ids)
-        batch_labels.append(torch.as_tensor(example['label']))
-    
-    # Get pad_token_id from tokenizer, default to 0 if not available
-    pad_token_id = getattr(tokenizer, 'pad_token_id', 0) if tokenizer else 0
+        batch_attention_masks.append(att_mask) 
+    labels = torch.stack([torch.as_tensor(example["label"]) for example in examples]) 
+    # Get pad_token_id from tokenizer, ensure it's never None
+    if tokenizer and hasattr(tokenizer, 'pad_token_id') and tokenizer.pad_token_id is not None:
+        pad_token_id = tokenizer.pad_token_id
+    else:
+        # Use a safe default value (0 is commonly used for padding)
+        pad_token_id = 0
     
     # Use pad_sequence for efficient padding
     input_ids = pad_sequence(batch_input_ids, batch_first=True, padding_value=pad_token_id)
     
     # Create attention masks (1 for real tokens, 0 for padding)
-    attention_masks = []
-    for i, original_length in enumerate([len(ids) for ids in batch_input_ids]):
-        mask = torch.zeros(input_ids.size(1), dtype=torch.long)
-        mask[:original_length] = 1
-        attention_masks.append(mask)
-    
-    attention_masks = torch.stack(attention_masks)
-    labels = torch.stack(batch_labels)
+    attention_masks = pad_sequence(batch_attention_masks, batch_first=True, padding_value=0)
 
     if device is not None:
         input_ids = input_ids.to(device)
