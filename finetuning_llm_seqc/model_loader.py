@@ -7,8 +7,8 @@ from transformers import (
     AutoConfig,
     LlamaConfig
 )
-from models.modeling_llama import LlamaForSequenceClassification
-from models.modeling_utils import BackwardSupportedArguments, get_custom_model
+from custom_models.modeling_llama import LlamaForSequenceClassification
+from custom_models.modeling_utils import BackwardSupportedArguments, get_custom_model
 from transformers.modeling_outputs import SequenceClassifierOutput
 import os
 

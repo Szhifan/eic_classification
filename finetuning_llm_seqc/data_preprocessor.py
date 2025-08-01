@@ -48,7 +48,6 @@ class DataPreprocessor:
             sample["text"],
             truncation=True,
             max_length=self.max_length,
-            return_tensors='pt'
         )
         sample['input_ids_text'] = encoded["input_ids"]
         sample['attention_mask_text'] = encoded["attention_mask"]
