@@ -17,10 +17,8 @@ class Evaluater:
         tokenizer = AutoTokenizer.from_pretrained(str(finetuned_model_dir))
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = 'right'
-        compute_dtype = getattr(torch, "float32")  # Use float32 for stability in evaluation
         model =  AutoPeftModelForSequenceClassification.from_pretrained(
                         str(finetuned_model_dir)+'/',
-                        torch_dtype=compute_dtype,
                         return_dict=False,
                         low_cpu_mem_usage=True,
                         torch_dtype=torch.float16, 

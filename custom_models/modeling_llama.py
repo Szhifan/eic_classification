@@ -26,7 +26,7 @@ from transformers.cache_utils import DynamicCache
 from transformers.masking_utils import create_causal_mask
 from transformers.utils.generic import check_model_inputs
 
-logger = logging.getLogger(__name__)
+logger = logging.get_logger(__name__)
 @auto_docstring
 class LlamaModel(LlamaPreTrainedModel):
     def __init__(self, config):
@@ -107,6 +107,7 @@ class LlamaModel(LlamaPreTrainedModel):
                 past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
             )
 
+
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0)
         _is_flash_attn = self.config._attn_implementation == "flash_attention_2"
@@ -135,8 +136,6 @@ class LlamaModel(LlamaPreTrainedModel):
         
         # decoder layers
         h1, h2 = None, 0
-        all_hidden_states = () 
-        all_self_attns = () 
         for i in range(self.num_hidden_layers):
             decoder_layer = self.layers[i]
             if isinstance(self.unsink_layers, int):
@@ -149,10 +148,6 @@ class LlamaModel(LlamaPreTrainedModel):
                     bidir_attention_mask if is_bidir else causal_mask
             
             reverse_flag = is_unsink and _is_flash_attn and not _is_mask0
-           
-    
-            all_hidden_states += (hidden_states,)
-
             if i == self.bidir_layers:
                 h1 = hidden_states
             if self.use_res_connect(i):
@@ -188,6 +183,8 @@ class LlamaModel(LlamaPreTrainedModel):
                 position_ids=position_ids,
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
+                past_key_value=past_key_values,
+                **kwargs,
             )
             
             decoder_layer.self_attn.is_causal = tem
@@ -197,11 +194,10 @@ class LlamaModel(LlamaPreTrainedModel):
         hidden_states = self.norm(hidden_states)
         # add hidden states from the last decoder layer
 
-        all_hidden_states += (hidden_states,)
+
 
         return BaseModelOutputWithPast(
             last_hidden_state=hidden_states,
-            hidden_states=all_hidden_states,
             past_key_values=past_key_values,
 
         )

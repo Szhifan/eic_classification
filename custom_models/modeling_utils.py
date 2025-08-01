@@ -18,7 +18,7 @@ ARCHITECTURES = tuple(['NONE', 'INPLACE', 'EXTEND', 'INTER', 'EXTRA'])
 @dataclass
 class BackwardSupportedArguments:
     architecture: str = field(
-        default="INPLACE", 
+        default="None",
         metadata={"help": "Type of architecture to use. Options: " + ", ".join(ARCHITECTURES)}
     )
     mask_type: str = field(

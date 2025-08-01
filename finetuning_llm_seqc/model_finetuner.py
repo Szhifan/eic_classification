@@ -5,10 +5,17 @@ import numpy as np
 from transformers import TrainingArguments                         
 import evaluate
 from trl import SFTTrainer
+import gc
 accuracy = evaluate.load("accuracy")
 
 
 from torch.nn.utils.rnn import pad_sequence
+
+def clear_gpu_memory():
+    """Clear GPU memory to prevent spikes during evaluation"""
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        gc.collect()
 
 def collate_fn(examples, device=None, tokenizer=None):
     # Extract input_ids and labels from examples
@@ -47,6 +54,10 @@ def collate_fn(examples, device=None, tokenizer=None):
 def compute_metrics(eval_pred):   
     predictions, labels = eval_pred
     predictions = np.argmax(predictions, axis=1)
+    
+    # Clear GPU memory after each evaluation step
+    clear_gpu_memory()
+    
     return accuracy.compute(predictions=predictions, references=labels)
 
 class ModelFinetuner:
@@ -127,11 +138,14 @@ class ModelFinetuner:
         # Print information about the percentage of trainable parameters
         self.print_trainable_parameters(model)
        
+        # Calculate optimal eval batch size based on available memory
+        eval_batch_size = max(1, per_device_train_batch_size // 4)  # Start with 1/4 of train batch size
+        
         args = TrainingArguments(
                     output_dir = output_dir,
                     num_train_epochs=train_epochs,
                     per_device_train_batch_size = per_device_train_batch_size,
-                    per_device_eval_batch_size=2,
+                    per_device_eval_batch_size=eval_batch_size,
                     gradient_accumulation_steps = 4,
                     learning_rate = learning_rate, 
                     logging_steps=10,
@@ -152,6 +166,10 @@ class ModelFinetuner:
                     metric_for_best_model="eval_accuracy",
                     label_names = ['labels'],
                     save_total_limit=2,
+                    # Add evaluation optimizations
+                    eval_accumulation_steps=4,                # Accumulate eval outputs to save memory
+                    dataloader_pin_memory=False,              # Disable pin memory to reduce GPU memory pressure
+                    dataloader_num_workers=0,                 # Reduce number of workers during eval
                     ) 
         
         # Create a partial function to pass tokenizer to collate_fn
@@ -168,7 +186,12 @@ class ModelFinetuner:
                 data_collator=data_collator,
             )
        
+        # Disable caching during evaluation to prevent memory spikes
         model.config.use_cache = False
+        
+        # Set model to appropriate mode for memory optimization
+        if hasattr(model, 'gradient_checkpointing_enable'):
+            model.gradient_checkpointing_enable()
         do_train = True
 
         # Launch training and log metrics
