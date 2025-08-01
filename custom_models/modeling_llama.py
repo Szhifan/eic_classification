@@ -20,13 +20,14 @@ from .modeling_utils import (
     flip_tensor,
 )
 from functools import partial
-from transformers.utils import TransformersKwargs, logging
+from transformers.utils import TransformersKwargs, logging, auto_docstring
 from transformers.processing_utils import Unpack
 from transformers.cache_utils import DynamicCache
 from transformers.masking_utils import create_causal_mask
+from transformers.utils.generic import check_model_inputs
 
 logger = logging.getLogger(__name__)
-
+@auto_docstring
 class LlamaModel(LlamaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -78,13 +79,8 @@ class LlamaModel(LlamaPreTrainedModel):
 
         # Initialize weights and apply final processing
         self.post_init()
-
-    def get_input_embeddings(self):
-        return self.embed_tokens
-
-    def set_input_embeddings(self, value):
-        self.embed_tokens = value
-
+    @check_model_inputs
+    @auto_docstring
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -113,7 +109,6 @@ class LlamaModel(LlamaPreTrainedModel):
 
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0)
-        return_legacy_cache = False
         _is_flash_attn = self.config._attn_implementation == "flash_attention_2"
         _is_intera = self.architecture in {'INTER', 'EXTRA'}
         _is_mask0 = self.mask_type == "MASK0"
@@ -124,7 +119,7 @@ class LlamaModel(LlamaPreTrainedModel):
             attention_mask=attention_mask,
             cache_position=cache_position,
             past_key_values=past_key_values,
-            position_ids=position_ids,
+            position_ids=position_ids
         )
 
         # Get input shape from either input_ids or inputs_embeds
@@ -142,7 +137,6 @@ class LlamaModel(LlamaPreTrainedModel):
         h1, h2 = None, 0
         all_hidden_states = () 
         all_self_attns = () 
-        next_decoder_cache = None
         for i in range(self.num_hidden_layers):
             decoder_layer = self.layers[i]
             if isinstance(self.unsink_layers, int):
@@ -175,6 +169,7 @@ class LlamaModel(LlamaPreTrainedModel):
                 past_key_value=past_key_values,
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
+                **kwargs,
             )
 
             hidden_states = flip_tensor(hidden_states, reverse_flag)
@@ -193,7 +188,7 @@ class LlamaModel(LlamaPreTrainedModel):
                 position_ids=position_ids,
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
-            )[0]
+            )
             
             decoder_layer.self_attn.is_causal = tem
 
@@ -204,15 +199,11 @@ class LlamaModel(LlamaPreTrainedModel):
 
         all_hidden_states += (hidden_states,)
 
-        next_cache = next_decoder_cache if use_cache else None
-        if return_legacy_cache:
-            next_cache = next_cache.to_legacy_cache()
-
         return BaseModelOutputWithPast(
             last_hidden_state=hidden_states,
-            past_key_values=next_cache,
             hidden_states=all_hidden_states,
-            attentions=all_self_attns,
+            past_key_values=past_key_values,
+
         )
 
     

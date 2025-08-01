@@ -89,7 +89,7 @@ def main():
     ############################################################################
     # load model from path
     # <settings>
-    model_path = 'debug-mini-llama'  # 请修改为您的模型路径
+    model_path = 'meta-llama/Llama-3.1-8B'  # 请修改为您的模型路径
     use_custom_llama = False  # 设置为 True 以使用自定义 Llama 模型
     emb_type = None # transformation function for xnet and snet approaches, select from [''diff', diffABS', 'n-diffABS', 'n-o', 'n-diffABS-o'], None for SeqC and Gen
     #input type for the model, select from ['text_nl_on', 'text_st_on', 'inst_text_st_on', 'inst_text_nl_on'] 

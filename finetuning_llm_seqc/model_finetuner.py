@@ -2,8 +2,9 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import numpy as np
-from transformers import Trainer, TrainingArguments                         
+from transformers import TrainingArguments                         
 import evaluate
+from trl import SFTTrainer
 accuracy = evaluate.load("accuracy")
 
 
@@ -130,8 +131,8 @@ class ModelFinetuner:
                     output_dir = output_dir,
                     num_train_epochs=train_epochs,
                     per_device_train_batch_size = per_device_train_batch_size,
-                    per_device_eval_batch_size=per_device_train_batch_size,
-                    gradient_accumulation_steps = 8,
+                    per_device_eval_batch_size=2,
+                    gradient_accumulation_steps = 4,
                     learning_rate = learning_rate, 
                     logging_steps=10,
                     fp16 = True,
@@ -143,7 +144,7 @@ class ModelFinetuner:
                     lr_scheduler_type="cosine",               # use cosine learning rate scheduler
                     # report_to="wandb",                  # report metrics to wandb
                     eval_strategy="epoch",              # save checkpoint every epoch
-                    save_strategy="epoch",
+                    save_strategy="best",
                     gradient_checkpointing=True,              # use gradient checkpointing to save memory
                     optim="paged_adamw_32bit",
                     remove_unused_columns=False,
@@ -156,13 +157,14 @@ class ModelFinetuner:
         # Create a partial function to pass tokenizer to collate_fn
         from functools import partial
         data_collator = partial(collate_fn, tokenizer=tokenizer)
-        
-        trainer = Trainer(
+
+        trainer = SFTTrainer(
                 model=model,
                 args=args,
                 train_dataset=train_ds,
                 eval_dataset=val_ds,
                 compute_metrics=compute_metrics,
+                peft_config=peft_config,
                 data_collator=data_collator,
             )
        
