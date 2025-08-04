@@ -25,7 +25,6 @@ class Evaluater:
                         device_map='auto',
                         num_labels = len(labels),
                     )
-        
         model.config.id2label = id2label
         model.config.label2id = label2id
 

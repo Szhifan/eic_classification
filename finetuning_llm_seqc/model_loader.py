@@ -47,7 +47,7 @@ class ModelLoader:
         tokenizer = AutoTokenizer.from_pretrained(model_path)
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = 'right'
-
+        
         if use_custom_llama and ('llama' in model_path.lower() or 'llama' in str(model_path).lower()):
             # Use custom Llama model
             print("Using custom Llama model implementation...")

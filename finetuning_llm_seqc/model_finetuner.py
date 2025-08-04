@@ -11,11 +11,6 @@ accuracy = evaluate.load("accuracy")
 
 from torch.nn.utils.rnn import pad_sequence
 
-def clear_gpu_memory():
-    """Clear GPU memory to prevent spikes during evaluation"""
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        gc.collect()
 
 def collate_fn(examples, device=None, tokenizer=None):
     # Extract input_ids and labels from examples
@@ -30,12 +25,8 @@ def collate_fn(examples, device=None, tokenizer=None):
         batch_attention_masks.append(att_mask) 
     labels = torch.stack([torch.tensor(example["label"], dtype=torch.long) for example in examples]) 
     # Get pad_token_id from tokenizer, ensure it's never None
-    if tokenizer and hasattr(tokenizer, 'pad_token_id') and tokenizer.pad_token_id is not None:
-        pad_token_id = tokenizer.pad_token_id
-    else:
-        # Use a safe default value (0 is commonly used for padding)
+    if not tokenizer.pad_token_id:
         pad_token_id = 0
-    
     # Use pad_sequence for efficient padding
     input_ids = pad_sequence(batch_input_ids, batch_first=True, padding_value=pad_token_id)
     
@@ -54,10 +45,6 @@ def collate_fn(examples, device=None, tokenizer=None):
 def compute_metrics(eval_pred):   
     predictions, labels = eval_pred
     predictions = np.argmax(predictions, axis=1)
-    
-    # Clear GPU memory after each evaluation step
-    clear_gpu_memory()
-    
     return accuracy.compute(predictions=predictions, references=labels)
 
 class ModelFinetuner:
