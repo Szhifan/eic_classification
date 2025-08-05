@@ -5,7 +5,7 @@ from tqdm import tqdm
 import json
 import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report
-from peft import AutoPeftModelForSequenceClassification
+from peft import AutoPeftModelForSequenceClassification, PeftModel
 from transformers import AutoTokenizer
 from .model_finetuner import collate_fn
 
@@ -13,17 +13,16 @@ class Evaluater:
     def __init__(self) -> None:
         print('Evaluating the model...')
 
-    def merge_model(self, finetuned_model_dir:Path, labels, label2id, id2label):
+    def merge_model(self, model,finetuned_model_dir:Path, labels, label2id, id2label):
         tokenizer = AutoTokenizer.from_pretrained(str(finetuned_model_dir))
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = 'right'
-        model =  AutoPeftModelForSequenceClassification.from_pretrained(
-                        str(finetuned_model_dir)+'/',
-                        return_dict=False,
-                        low_cpu_mem_usage=True,
-                        torch_dtype=torch.float16, 
-                        device_map='auto',
-                        num_labels = len(labels),
+        model =  PeftModel.from_pretrained(
+            model,
+            str(finetuned_model_dir),
+            torch_dtype=torch.float16,
+            is_trainable=True,
+            device_map='auto'
                     )
         model.config.id2label = id2label
         model.config.label2id = label2id

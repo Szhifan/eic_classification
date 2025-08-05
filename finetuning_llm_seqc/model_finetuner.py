@@ -105,9 +105,7 @@ class ModelFinetuner:
             print("Using single GPU for training")
         else:
             print("Using CPU for training")
-        
-        # Enable gradient checkpointing to reduce memory usage during fine-tuning
-        model.gradient_checkpointing_enable()
+
        
         # Prepare the model for training 
         model = prepare_model_for_kbit_training(model)

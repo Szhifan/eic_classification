@@ -30,6 +30,7 @@ logger = logging.get_logger(__name__)
 @auto_docstring
 class LlamaModel(LlamaPreTrainedModel):
     def __init__(self, config):
+        print("Using custom LlamaModel with extended architecture")
         super().__init__(config)
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size

@@ -59,6 +59,12 @@ class ModelLoader:
                 
                 # Update config with backward supported arguments
                 print("Updating config with backward supported arguments...")
+                # Pass quantization settings to custom model args
+                if 'use_quantization' not in model_args:
+                    model_args['use_quantization'] = torch.cuda.is_available()
+                if 'load_in_4bit' not in model_args:
+                    model_args['load_in_4bit'] = torch.cuda.is_available()
+                
                 backward_args = BackwardSupportedArguments(**model_args)
                 # Add required attributes for get_custom_model
                 setattr(backward_args, 'model_name_or_path', model_path)
@@ -95,7 +101,7 @@ class ModelLoader:
             print("Using standard AutoModelForSequenceClassification...")
             model = AutoModelForSequenceClassification.from_pretrained(
                 model_path,
-                quantization_config=self.bnb_config,
+                quantization_config=self.bnb_config if torch.cuda.is_available() else None,
                 device_map=device_map, 
                 num_labels=len(labels) if labels else 2,
             ) 

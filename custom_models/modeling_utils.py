@@ -4,7 +4,7 @@ import warnings
 import torch
 from torch import nn
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
-from transformers import AutoModel
+from transformers import AutoModel, BitsAndBytesConfig
 import re
 import os
 import logging
@@ -71,6 +71,11 @@ class BackwardSupportedArguments:
     peft_file: Optional[str] = field(
         default=None, metadata={"help": "Peft file path"}
     )
+    
+    # Quantization parameters
+    use_quantization: bool = field(
+        default=True, metadata={"help": "Whether to use 4-bit quantization"}
+    )
 
     def __post_init__(self):
         if self.unsink_layers is None or self.unsink_layers.lower() in ("none", "false", "f", "no", "n", "[]", "{}", "()"):
@@ -109,9 +114,25 @@ class BackwardSupportedArguments:
 
         if self.peft_file is not None and self.peft_file.lower() in ("none", "false", "f", "no", "n"):
             self.peft_file = None
+            
+        # Handle quantization parameters
+        if not torch.cuda.is_available():
+            self.use_quantization = False
 
     def to_dict(self):
         return asdict(self)
+    
+    def get_quantization_config(self):
+        """Create BitsAndBytesConfig from quantization parameters"""
+        if not self.use_quantization or not self.load_in_4bit:
+            return None
+            
+        return BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+        )
 
     def get_suffix(self, training_args=None):
         suffix = []
@@ -166,27 +187,44 @@ def get_custom_model(model_args, config, MODEL_TYPE=AutoModel):
         os.environ.get('TINY_FLASH_ATTN', False) \
         and is_keyword_present else None
     
+    # Get quantization config if available
+    quantization_config = None
+    if hasattr(model_args, 'get_quantization_config'):
+        quantization_config = model_args.get_quantization_config()
+        if quantization_config:
+            logger.info("Using 4-bit quantization for custom model")
+    
     if model_args.model_name_or_path is None:
         config._attn_implementation = attn_implementation
         model = MODEL_TYPE.from_config(
             config, 
             trust_remote_code=model_args.trust_remote_code, 
-            torch_dtype=torch_dtype
+            torch_dtype=torch_dtype,
+            quantization_config=quantization_config
         )
         n_params = sum({p.data_ptr(): p.numel() for p in model.parameters()}.values())
         logger.info(f"Training new model from scratch - Total size={n_params/2**20:.2f}M params")
         return model
 
+    model_kwargs = {
+        'gguf_file': getattr(config, "gguf_file", None),
+        'from_tf': bool(".ckpt" in model_args.model_name_or_path),
+        'config': config,
+        'cache_dir': getattr(model_args, "cache_dir", None),
+        'revision': getattr(model_args, "model_revision", None),
+        'token': getattr(model_args, "token", None),
+        'trust_remote_code': getattr(model_args, "trust_remote_code", False),
+        'torch_dtype': torch_dtype,
+    }
+    
+    # Add quantization config if available
+    if quantization_config is not None:
+        model_kwargs['quantization_config'] = quantization_config
+        logger.info(f"Loading model with quantization config: {quantization_config}")
+
     model = MODEL_TYPE.from_pretrained(
         model_args.model_name_or_path,
-        gguf_file=getattr(config, "gguf_file", None),
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=getattr(model_args, "cache_dir", None),
-        revision=getattr(model_args, "model_revision", None),
-        token=getattr(model_args, "token", None),
-        trust_remote_code=getattr(model_args, "trust_remote_code", False),
-        torch_dtype=torch_dtype,
+        **model_kwargs
         # ignore_mismatched_sizes=getattr(model_args, "ignore_mismatched_sizes", False),
         # low_cpu_mem_usage=getattr(model_args, "low_cpu_mem_usage", False),
         # attn_implementation=attn_implementation,

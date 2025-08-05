@@ -8,6 +8,8 @@ from finetuning_llm_seqc.data_preprocessor import DataPreprocessor
 from finetuning_llm_seqc.model_finetuner import ModelFinetuner
 from finetuning_llm_seqc.evaluater import Evaluater
 import wandb
+from accelerate import PartialState
+
 
 def create_model_dir(task_name, method, model_path, lora_r, lora_alpha, lora_dropout, learning_rate, 
                      per_device_train_batch_size, train_epochs, train_type, test_type,
@@ -91,6 +93,11 @@ def main():
     # <settings>
     model_path = 'meta-llama/Llama-3.1-8B'  # 请修改为您的模型路径
     use_custom_llama = False  # 设置为 True 以使用自定义 Llama 模型
+    use_multi_gpu = False 
+    if use_multi_gpu:
+        device_map="DDP" # for DDP and running with `accelerate launch test_sft.py`
+        device_string = PartialState().process_index
+        device_map={'':device_string}
     emb_type = None # transformation function for xnet and snet approaches, select from [''diff', diffABS', 'n-diffABS', 'n-o', 'n-diffABS-o'], None for SeqC and Gen
     #input type for the model, select from ['text_nl_on', 'text_st_on', 'inst_text_st_on', 'inst_text_nl_on'] 
     #for natural language input, structured input, instruction + structured input,  instruction + natural language input, respectively
@@ -113,7 +120,8 @@ def main():
     # </settings>
     model_loader = ModelLoader()
     model, tokenizer = model_loader.load_model_from_path(
-        model_path, 
+        model_path,
+        device_map=None if not use_multi_gpu else device_map, 
         labels=labels, 
         label2id=label2id, 
         id2label=id2label, 
