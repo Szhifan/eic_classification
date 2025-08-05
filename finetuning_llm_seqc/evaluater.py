@@ -12,25 +12,27 @@ from .model_finetuner import collate_fn
 class Evaluater:
     def __init__(self) -> None:
         print('Evaluating the model...')
-
-    def merge_model(self, model,finetuned_model_dir:Path, labels, label2id, id2label):
+    def merge_model(self, finetuned_model_dir:Path, labels, label2id, id2label):
         tokenizer = AutoTokenizer.from_pretrained(str(finetuned_model_dir))
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = 'right'
-        model =  PeftModel.from_pretrained(
-            model,
-            str(finetuned_model_dir),
-            torch_dtype=torch.float16,
-            is_trainable=True,
-            device_map='auto'
+        compute_dtype = getattr(torch, "float16")   
+        
+        # Load model on single device for evaluation
+        model =  AutoPeftModelForSequenceClassification.from_pretrained(
+                        str(finetuned_model_dir)+'/',
+                        torch_dtype=compute_dtype,
+                        device_map={"": "cuda:0"},  # Force everything to cuda:0
+                        num_labels = len(labels),
                     )
+        
         model.config.id2label = id2label
         model.config.label2id = label2id
 
         model = model.merge_and_unload()
-        model.to(dtype=torch.float16)
-        model.to('cuda')
-        # Ensure model is in float32 for stable evaluation
+        
+        # Ensure the entire model is on cuda:0
+        model = model.to('cuda:0')
         model.config.pad_token_id = tokenizer.pad_token_id
        
         if 'mistral' in str(finetuned_model_dir):
@@ -48,18 +50,17 @@ class Evaluater:
         model_dtype = next(model.parameters()).dtype
         
         for i in tqdm(range(len(test))):
-            inputs = collate_fn([test[i]], device='cuda', tokenizer=tokenizer)
+            # Ensure inputs are on cuda:0 to match the model
+            inputs = collate_fn([test[i]], device='cuda:0', tokenizer=tokenizer)
             
-            # Debug: print model and input dtypes
-            print(f"model_dtype {model_dtype}")
-            print(f"input dtypes: {[(k, v.dtype) for k, v in inputs.items()]}")
-            
-            # Don't convert input_ids and attention_mask (they should stay as integers)
-            # Only convert floating point tensors if needed, but since we're using float32 model,
-            # this shouldn't be necessary
+            # Debug: print model and input dtypes (only for first iteration)
+            if i == 0:
+                print(f"model_dtype {model_dtype}")
+                print(f"input dtypes: {[(k, v.dtype) for k, v in inputs.items()]}")
+                print(f"input devices: {[(k, v.device) for k, v in inputs.items()]}")
             
             with torch.no_grad():
-                logits = model(**inputs, return_dict=True).logits.to('cuda')
+                logits = model(**inputs, return_dict=True).logits
                
             predicted_class_id = logits.argmax().item()
             pred = id2label[int(predicted_class_id)]

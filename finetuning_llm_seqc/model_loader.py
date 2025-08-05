@@ -105,10 +105,11 @@ class ModelLoader:
                 device_map=device_map, 
                 num_labels=len(labels) if labels else 2,
             ) 
-            model.config.pad_token_id = tokenizer.pad_token_id
-            model.config.id2label = id2label
-            model.config.label2id = label2id
 
+        model.config.pad_token_id = tokenizer.pad_token_id
+        model.config.id2label = id2label
+        model.config.label2id = label2id
+        print("PAD token ID:", model.config.pad_token_id)
         # Handle Mistral specific configuration
         if 'Mistral' in model_path:
             model.config.sliding_window = 4096

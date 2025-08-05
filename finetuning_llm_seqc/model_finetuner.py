@@ -24,8 +24,9 @@ def collate_fn(examples, device=None, tokenizer=None):
         batch_input_ids.append(input_ids)
         batch_attention_masks.append(att_mask) 
     labels = torch.stack([torch.tensor(example["label"], dtype=torch.long) for example in examples]) 
-    # Get pad_token_id from tokenizer, ensure it's never None
-    if not tokenizer.pad_token_id:
+    if tokenizer.pad_token_id is not None:
+        pad_token_id = tokenizer.pad_token_id
+    else:
         pad_token_id = 0
     # Use pad_sequence for efficient padding
     input_ids = pad_sequence(batch_input_ids, batch_first=True, padding_value=pad_token_id)
@@ -88,7 +89,8 @@ class ModelFinetuner:
                   task_type = "SEQ_CLS",
                   max_seq_length = 4096,
                   use_multi_gpu = False,
-                  ddp_find_unused_parameters = False
+                  ddp_find_unused_parameters = False,
+                  base_model_path = None  # 添加这个参数
                   ):
         print('fine-tuning....')
         
@@ -145,6 +147,7 @@ class ModelFinetuner:
                     eval_strategy="epoch",              # save checkpoint every epoch
                     save_strategy="best",
                     gradient_checkpointing=True,              # use gradient checkpointing to save memory
+                    gradient_checkpointing_kwargs = {"use_reentrant": False}, #must be false for DDP
                     optim="paged_adamw_32bit",
                     remove_unused_columns=False,
                     load_best_model_at_end=True,
@@ -186,6 +189,10 @@ class ModelFinetuner:
             metrics = train_result.metrics
             trainer.log_metrics("train", metrics)
             trainer.save_metrics("train", metrics)
-            trainer.save_model()
+            
+            # Use PEFT's save_pretrained instead of trainer.save_model()
+            # This preserves the base_model_name_or_path correctly
+            model.save_pretrained(output_dir)
             tokenizer.save_pretrained(output_dir)
+            trainer.sav
 

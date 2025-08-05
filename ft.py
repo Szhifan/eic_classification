@@ -28,12 +28,8 @@ def create_model_dir(task_name, method, model_path, lora_r, lora_alpha, lora_dro
     model_folder_name = model_name + '_' + f'_lora-r{lora_r}-a{lora_alpha}-d{lora_dropout}_lr{learning_rate}'
     model_folder_name += f'_bs{per_device_train_batch_size}_ep{train_epochs}_{train_type}_{test_type}_ml{max_length}_{emb_type}_{input_type}'
     output_dir = os.path.join(output_dir, model_folder_name)
-    if os.path.exists(output_dir):
-         if recreate_dir:
-            shutil.rmtree(output_dir)
-            os.makedirs(output_dir)
-    else:
-        os.makedirs(output_dir)
+
+    os.makedirs(output_dir, exist_ok=recreate_dir)
     return output_dir
         
 
@@ -91,13 +87,15 @@ def main():
     ############################################################################
     # load model from path
     # <settings>
-    model_path = 'meta-llama/Llama-3.1-8B'  # 请修改为您的模型路径
+    model_path = 'meta-llama/Llama-3.2-1B'  # 请修改为您的模型路径
     use_custom_llama = False  # 设置为 True 以使用自定义 Llama 模型
-    use_multi_gpu = False 
+    use_multi_gpu = True  # 是否使用多GPU训练
     if use_multi_gpu:
         device_map="DDP" # for DDP and running with `accelerate launch test_sft.py`
         device_string = PartialState().process_index
         device_map={'':device_string}
+    else:   
+        device_map="auto"
     emb_type = None # transformation function for xnet and snet approaches, select from [''diff', diffABS', 'n-diffABS', 'n-o', 'n-diffABS-o'], None for SeqC and Gen
     #input type for the model, select from ['text_nl_on', 'text_st_on', 'inst_text_st_on', 'inst_text_nl_on'] 
     #for natural language input, structured input, instruction + structured input,  instruction + natural language input, respectively
@@ -121,7 +119,7 @@ def main():
     model_loader = ModelLoader()
     model, tokenizer = model_loader.load_model_from_path(
         model_path,
-        device_map=None if not use_multi_gpu else device_map, 
+        device_map=device_map, 
         labels=labels, 
         label2id=label2id, 
         id2label=id2label, 
@@ -159,13 +157,14 @@ def main():
     ############################################################################
     # fine-tune model
     # <settings>
-    lora_r = 128 # LoRA rank parameter
-    lora_alpha = 128 # Alpha parameter for LoRA scaling
+    lora_r = 8 # LoRA rank parameter
+    lora_alpha = 8 # Alpha parameter for LoRA scaling
     lora_dropout = 0.1 # Dropout probability for LoRA layers
     learning_rate = 2e-4 # Learning rate
     per_device_train_batch_size = 32 # Batch size per GPU for training 
-    train_epochs = 10 # Number of epochs to train
+    train_epochs = 1 # Number of epochs to train
     recreate_dir = True # Create a directory for the model
+    do_train = False # Whether to train the model
     # </settings>
     # create model dir to save the fine-tuned model
     output_dir = create_model_dir(task_name, method, model_path, lora_r, lora_alpha, lora_dropout, learning_rate, 
@@ -173,12 +172,13 @@ def main():
                      max_length, emb_type, input_type, recreate_dir=recreate_dir)
     print('========== 4. Model dir created: ==========')
     print('output_dir: ', output_dir)
-    # fine-tune
-    model_finetuner = ModelFinetuner()
-    model_finetuner.fine_tune(model, tokenizer, train_ds = train_ds , val_ds = val_ds,  lora_r = lora_r, lora_alpha = lora_alpha, lora_dropout = lora_dropout,
-                                   learning_rate = learning_rate, per_device_train_batch_size = per_device_train_batch_size, train_epochs = train_epochs, output_dir = output_dir)
-    print('========== 5. Model fine-tuned: ==========')
-    print('output_dir: ', output_dir)
+    # fine-tune\
+    if do_train:
+        model_finetuner = ModelFinetuner()
+        model_finetuner.fine_tune(model, tokenizer, train_ds = train_ds , val_ds = val_ds,  lora_r = lora_r, lora_alpha = lora_alpha, lora_dropout = lora_dropout,
+                                    learning_rate = learning_rate, per_device_train_batch_size = per_device_train_batch_size, train_epochs = train_epochs, output_dir = output_dir)
+        print('========== 5. Model fine-tuned: ==========')
+        print('output_dir: ', output_dir)
 
     ############################################################################
     # evaluate the fine-tuned model
