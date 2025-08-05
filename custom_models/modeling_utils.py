@@ -76,6 +76,9 @@ class BackwardSupportedArguments:
     use_quantization: bool = field(
         default=True, metadata={"help": "Whether to use 4-bit quantization"}
     )
+    load_in_4bit: bool = field(
+        default=True, metadata={"help": "Whether to load model in 4-bit precision"}
+    )
 
     def __post_init__(self):
         if self.unsink_layers is None or self.unsink_layers.lower() in ("none", "false", "f", "no", "n", "[]", "{}", "()"):

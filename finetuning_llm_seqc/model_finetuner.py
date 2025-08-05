@@ -192,7 +192,6 @@ class ModelFinetuner:
             
             # Use PEFT's save_pretrained instead of trainer.save_model()
             # This preserves the base_model_name_or_path correctly
-            model.save_pretrained(output_dir)
+            trainer.save_model(output_dir)
             tokenizer.save_pretrained(output_dir)
-            trainer.sav
 

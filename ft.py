@@ -161,7 +161,7 @@ def main():
     lora_alpha = 8 # Alpha parameter for LoRA scaling
     lora_dropout = 0.1 # Dropout probability for LoRA layers
     learning_rate = 2e-4 # Learning rate
-    per_device_train_batch_size = 32 # Batch size per GPU for training 
+    per_device_train_batch_size = 16# Batch size per GPU for training 
     train_epochs = 1 # Number of epochs to train
     recreate_dir = True # Create a directory for the model
     do_train = False # Whether to train the model
@@ -183,7 +183,7 @@ def main():
     ############################################################################
     # evaluate the fine-tuned model
     evaluater = Evaluater()
-    evaluater.evaluate(test_ds, model_dir=output_dir, labels=labels, label2id=label2id, id2label=id2label, emb_type=emb_type, input_type=input_type, response_key=response_key)
+    evaluater.evaluate(test_ds, model, model_dir=output_dir, labels=labels, label2id=label2id, id2label=id2label, emb_type=emb_type, input_type=input_type, response_key=response_key)
     print('========== 6. Model evaluated ==========')
     print('output_dir: ', output_dir)
     print('========== DONE ==========')
