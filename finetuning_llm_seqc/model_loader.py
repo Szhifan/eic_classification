@@ -62,7 +62,7 @@ class ModelLoader:
         if 'llama' in model_path.lower() or 'llama' in str(model_path).lower():
             print("Detected Llama model - preparing custom configuration...")
             config = self._prepare_custom_llama_config(model_path, labels, label2id, id2label, tokenizer, **model_args)
-        
+        config.num_labels = len(labels) if labels else 2
         # Always use AutoModelForSequenceClassification for sequence classification tasks
         print("Loading with AutoModelForSequenceClassification...")
         model = AutoModelForSequenceClassification.from_pretrained(
@@ -70,7 +70,6 @@ class ModelLoader:
             config=config,  # Pass custom config if it's a Llama model
             quantization_config=self.bnb_config if torch.cuda.is_available() else None,
             device_map=device_map, 
-            num_labels=len(labels) if labels else 2,
         ) 
 
         model.config.pad_token_id = tokenizer.pad_token_id

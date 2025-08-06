@@ -9,6 +9,7 @@ from peft import AutoPeftModelForSequenceClassification, PeftModel
 from transformers import AutoTokenizer
 from .model_finetuner import collate_fn
 
+
 class Evaluater:
     def __init__(self) -> None:
         print('Evaluating the model...')
@@ -32,7 +33,6 @@ class Evaluater:
         model = model.merge_and_unload()
         
         # Ensure the entire model is on cuda:0
-        model = model.to('cuda:0')
         model.config.pad_token_id = tokenizer.pad_token_id
        
         if 'mistral' in str(finetuned_model_dir):
@@ -45,7 +45,7 @@ class Evaluater:
         print('eval_file', eval_file)
         if eval_file.exists():
             eval_file.unlink()
-        
+        model = model.to('cuda:0')
         # Check model's data type by examining the first parameter
         model_dtype = next(model.parameters()).dtype
         

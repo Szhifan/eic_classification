@@ -2,9 +2,8 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import numpy as np
-from transformers import TrainingArguments                         
+from transformers import TrainingArguments, Trainer                         
 import evaluate
-from trl import SFTTrainer
 import gc
 accuracy = evaluate.load("accuracy")
 
@@ -164,13 +163,12 @@ class ModelFinetuner:
         from functools import partial
         data_collator = partial(collate_fn, tokenizer=tokenizer)
 
-        trainer = SFTTrainer(
+        trainer = Trainer(
                 model=model,
                 args=args,
                 train_dataset=train_ds,
                 eval_dataset=val_ds,
                 compute_metrics=compute_metrics,
-                peft_config=peft_config,
                 data_collator=data_collator,
             )
        

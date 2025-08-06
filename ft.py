@@ -9,27 +9,37 @@ from finetuning_llm_seqc.model_finetuner import ModelFinetuner
 from finetuning_llm_seqc.evaluater import Evaluater
 import wandb
 from accelerate import PartialState
+import json
 
 
-def create_model_dir(task_name, method, model_path, lora_r, lora_alpha, lora_dropout, learning_rate, 
-                     per_device_train_batch_size, train_epochs, train_type, test_type,
-                     max_length, emb_type, input_type, recreate_dir=True):
+def create_model_dir(model_path, **model_args):
+    
     # create model dir
     output_dir = "./results"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    output_dir = os.path.join(output_dir, task_name)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    output_dir = os.path.join(output_dir, method)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    model_name = os.path.basename(model_path).split('.')[0] if '.' in os.path.basename(model_path) else os.path.basename(model_path)
-    model_folder_name = model_name + '_' + f'_lora-r{lora_r}-a{lora_alpha}-d{lora_dropout}_lr{learning_rate}'
-    model_folder_name += f'_bs{per_device_train_batch_size}_ep{train_epochs}_{train_type}_{test_type}_ml{max_length}_{emb_type}_{input_type}'
+    model_name = model_path.split('/')[-1] if '/' in model_path else model_path
+    
+    # Add num_bidir_layers and num_unsink_layers to folder name
+    num_bidir = model_args.get('num_bidir_layers', 0)
+    num_unsink = model_args.get('num_unsink_layers', 0)
+    
+    model_folder_name = f"{model_name}_bidir{num_bidir}_unsink{num_unsink}"
     output_dir = os.path.join(output_dir, model_folder_name)
 
-    os.makedirs(output_dir, exist_ok=recreate_dir)
+  
+    
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Save model_args and model_path to model_args.json
+    config_data = {
+        'model_path': model_path,
+        **model_args
+    }
+    
+    with open(os.path.join(output_dir, 'model_args.json'), 'w') as f:
+        json.dump(config_data, f, indent=2)
+    
     return output_dir
         
 
@@ -39,7 +49,7 @@ def main():
     
     ############################################################################
 
-    # wandb.init(project="Re3-Sci", entity="re3-sci", name="finetune_EIC_SeqC")
+    wandb.init(project="Re3-Sci", name="finetune_EIC_SeqC")
     # basic settings
     # <settings>
     task_name ='edit_intent_classification'
@@ -88,8 +98,8 @@ def main():
     # load model from path
     # <settings>
     model_path = 'meta-llama/Llama-3.2-1B'  # 请修改为您的模型路径
-    use_custom_llama = False  # 设置为 True 以使用自定义 Llama 模型
-    use_multi_gpu = True  # 是否使用多GPU训练
+
+    use_multi_gpu = True  
     if use_multi_gpu:
         device_map="DDP" # for DDP and running with `accelerate launch test_sft.py`
         device_string = PartialState().process_index
@@ -105,11 +115,11 @@ def main():
     model_args = {
         'architecture': 'INPLACE',  # Type of architecture: NONE, INPLACE, EXTEND, INTER, EXTRA
         'mask_type': 'MASK0',  # Type of sink mask: MASK0, BACK
-        'num_unsink_layers': 0,  # Number of layers to change to unsink attention
+        'num_unsink_layers': 10,  # Number of layers to change to unsink attention
         'num_bidir_layers': 0,  # Number of layers to change to bidirectional attention
         'unsink_layers': None,  # Manually set specific layers to change to unsink attention
         'bidir_layers': None,  # Manually set specific layers to change to bidirectional attention
-        'res_connect': 3,  # Use ResConnect in Model
+        'res_connect': None,  # Use ResConnect in Model
         'freeze_type': None,  # Freeze type: all, backbone, default, false/none
         'num_unfreeze_layers': 0,  # Unfreeze layers starting from the last layer
         'model_init': True,  # Whether to initialize extended layers using forward params
@@ -125,7 +135,6 @@ def main():
         id2label=id2label, 
         emb_type=emb_type, 
         input_type=input_type,
-        use_custom_llama=use_custom_llama,
         **model_args
     )
     print('========== 2. Model loaded: ==========')
@@ -157,19 +166,17 @@ def main():
     ############################################################################
     # fine-tune model
     # <settings>
-    lora_r = 8 # LoRA rank parameter
-    lora_alpha = 8 # Alpha parameter for LoRA scaling
+    lora_r = 256 # LoRA rank parameter
+    lora_alpha = 256 # Alpha parameter for LoRA scaling
     lora_dropout = 0.1 # Dropout probability for LoRA layers
     learning_rate = 2e-4 # Learning rate
     per_device_train_batch_size = 16# Batch size per GPU for training 
-    train_epochs = 1 # Number of epochs to train
+    train_epochs = 10 # Number of epochs to train
     recreate_dir = True # Create a directory for the model
-    do_train = False # Whether to train the model
+    do_train = True # Whether to train the model
     # </settings>
     # create model dir to save the fine-tuned model
-    output_dir = create_model_dir(task_name, method, model_path, lora_r, lora_alpha, lora_dropout, learning_rate, 
-                     per_device_train_batch_size, train_epochs, train_type, test_type,
-                     max_length, emb_type, input_type, recreate_dir=recreate_dir)
+    output_dir = create_model_dir(model_path, **model_args)
     print('========== 4. Model dir created: ==========')
     print('output_dir: ', output_dir)
     # fine-tune\
@@ -182,10 +189,11 @@ def main():
 
     ############################################################################
     # evaluate the fine-tuned model
+    cp_dir = output_dir
     evaluater = Evaluater()
-    evaluater.evaluate(test_ds, model, model_dir=output_dir, labels=labels, label2id=label2id, id2label=id2label, emb_type=emb_type, input_type=input_type, response_key=response_key)
+    evaluater.evaluate(test_ds, model, tokenizer, model_dir=cp_dir, labels=labels, label2id=label2id, id2label=id2label, emb_type=emb_type, input_type=input_type, response_key=response_key)
     print('========== 6. Model evaluated ==========')
-    print('output_dir: ', output_dir)
+    print('output_dir: ', cp_dir)
     print('========== DONE ==========')
     
 
