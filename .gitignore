@@ -1,0 +1,8 @@
+results/* 
+wandb/*
+test.py
+*.pyc
+__pycache__/
+*.pkl
+*.log
+*.json
