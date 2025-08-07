@@ -38,6 +38,18 @@ class DataPreprocessor:
             sample["text"] = instruction + '\n ' + f"<old> {text_tgt} </old>" + '\n ' + f"<new> {text_src} </new>"
         elif input_type == 'inst_text_nl_on':
             sample["text"] = instruction + '\n ' + text_tgt + '\n ' + text_src
+        elif input_type == 'bert-sep':
+            encoded = self.tokenizer(
+                text_src,
+                text_tgt,
+                truncation=True,
+                max_length=self.max_length,
+            )
+            sample['input_ids_text'] = encoded["input_ids"]
+            sample['attention_mask_text'] = encoded["attention_mask"]
+            sample['token_type_ids_text'] = encoded["token_type_ids"]
+            sample["text"] = None  # Bert-sep does not use a single text field
+            return sample
         else:
             raise ValueError("Invalid input type. Choose from ['text_st_on','text_nl_on','inst_text_st_on', 'inst_text_st_on']")
 

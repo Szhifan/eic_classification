@@ -86,10 +86,8 @@ class ModelFinetuner:
                   bias = 'none',
                   target_modules="all-linear",
                   task_type = "SEQ_CLS",
-                  max_seq_length = 4096,
                   use_multi_gpu = False,
-                  ddp_find_unused_parameters = False,
-                  base_model_path = None  # 添加这个参数
+                  base_model_path = None 
                   ):
         print('fine-tuning....')
         
@@ -107,19 +105,21 @@ class ModelFinetuner:
         else:
             print("Using CPU for training")
 
-       
-        # Prepare the model for training 
-        model = prepare_model_for_kbit_training(model)
+        is_bert = True if "bert" in base_model_path.lower() else False
+        # Prepare the model for training
+        if not is_bert:
+            model = prepare_model_for_kbit_training(model)
 
-        peft_config = LoraConfig(
-            r = lora_r,
-            lora_alpha = lora_alpha,
-            target_modules = target_modules,
-            lora_dropout = lora_dropout,
-            bias = bias,
-            task_type = task_type,
-        )
-        model = get_peft_model(model, peft_config)
+            peft_config = LoraConfig(
+                r = lora_r,
+                lora_alpha = lora_alpha,
+                target_modules = target_modules,
+                lora_dropout = lora_dropout,
+                bias = bias,
+                task_type = task_type,
+            )
+            model = get_peft_model(model, peft_config)
+            
 
         # Print information about the percentage of trainable parameters
         self.print_trainable_parameters(model)
@@ -132,27 +132,27 @@ class ModelFinetuner:
                     num_train_epochs=train_epochs,
                     per_device_train_batch_size = per_device_train_batch_size,
                     per_device_eval_batch_size=eval_batch_size,
-                    gradient_accumulation_steps = 4,
+                    gradient_accumulation_steps = 4 if not is_bert else 1, # gradient accumulation steps for 4-bit models
                     learning_rate = learning_rate, 
                     logging_steps=10,
-                    fp16 = True,
+                    fp16 = True if not is_bert else False, # use fp16 for 4-bit models
                     weight_decay=0.001,
                     max_grad_norm=0.3,                        # max gradient norm based on QLoRA paper
                     max_steps=-1,
-                    warmup_ratio=0.03,                        # warmup ratio based on QLoRA paper
+                    warmup_ratio=0.03 if not is_bert else 0.01, # warmup ratio for learning rate scheduler
                     group_by_length=False,
                     lr_scheduler_type="cosine",               # use cosine learning rate scheduler
                     # report_to="wandb",                  # report metrics to wandb
                     eval_strategy="epoch",              # save checkpoint every epoch
                     save_strategy="best",
-                    gradient_checkpointing=True,              # use gradient checkpointing to save memory
+                    gradient_checkpointing=True if not is_bert else False, # use gradient checkpointing for 4-bit models
                     gradient_checkpointing_kwargs = {"use_reentrant": False}, #must be false for DDP
-                    optim="paged_adamw_32bit",
+                    optim="paged_adamw_32bit" if not is_bert else "adamw_torch", # use paged AdamW optimizer for 4-bit models
                     remove_unused_columns=False,
                     load_best_model_at_end=True,
                     metric_for_best_model="eval_accuracy",
                     label_names = ['labels'],
-                    save_total_limit=2,
+                    save_total_limit=1,
                     # Add evaluation optimizations
                     eval_accumulation_steps=4,                # Accumulate eval outputs to save memory
                     dataloader_pin_memory=False,              # Disable pin memory to reduce GPU memory pressure

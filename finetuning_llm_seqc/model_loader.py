@@ -54,7 +54,6 @@ class ModelLoader:
         print('Loading model from...', model_path)	
 
         tokenizer = AutoTokenizer.from_pretrained(model_path)
-        tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = 'right'
         
         # Prepare configuration - add custom Llama config if it's a Llama model
@@ -62,6 +61,8 @@ class ModelLoader:
         if 'llama' in model_path.lower() or 'llama' in str(model_path).lower():
             print("Detected Llama model - preparing custom configuration...")
             config = self._prepare_custom_llama_config(model_path, labels, label2id, id2label, tokenizer, **model_args)
+            tokenizer.pad_token = tokenizer.eos_token
+            model.config.pad_token_id = tokenizer.pad_token_id
         config.num_labels = len(labels) if labels else 2
         # Always use AutoModelForSequenceClassification for sequence classification tasks
         print("Loading with AutoModelForSequenceClassification...")
@@ -72,7 +73,7 @@ class ModelLoader:
             device_map=device_map, 
         ) 
 
-        model.config.pad_token_id = tokenizer.pad_token_id
+        
         model.config.id2label = id2label
         model.config.label2id = label2id
         print("PAD token ID:", model.config.pad_token_id)
@@ -94,11 +95,6 @@ class ModelLoader:
             
             # Set up quantization parameters
             print("Setting up model arguments...")
-            if 'use_quantization' not in model_args:
-                model_args['use_quantization'] = torch.cuda.is_available()
-            if 'load_in_4bit' not in model_args:
-                model_args['load_in_4bit'] = torch.cuda.is_available()
-            
             # Create backward supported arguments
             backward_args = BackwardSupportedArguments(**model_args)
             

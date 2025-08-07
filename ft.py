@@ -97,7 +97,7 @@ def main():
     ############################################################################
     # load model from path
     # <settings>
-    model_path = 'meta-llama/Llama-3.2-1B'  # 请修改为您的模型路径
+    model_path = 'meta-llama/Llama-3.2-1B'  
 
     use_multi_gpu = True  
     if use_multi_gpu:
@@ -107,7 +107,7 @@ def main():
     else:   
         device_map="auto"
     emb_type = None # transformation function for xnet and snet approaches, select from [''diff', diffABS', 'n-diffABS', 'n-o', 'n-diffABS-o'], None for SeqC and Gen
-    #input type for the model, select from ['text_nl_on', 'text_st_on', 'inst_text_st_on', 'inst_text_nl_on'] 
+    #input type for the model, select from ['text_nl_on', 'text_st_on', 'inst_text_st_on', 'inst_text_nl_on','bert-sep'] 
     #for natural language input, structured input, instruction + structured input,  instruction + natural language input, respectively
     input_type='text_st_on'
     
@@ -172,7 +172,6 @@ def main():
     learning_rate = 2e-4 # Learning rate
     per_device_train_batch_size = 16# Batch size per GPU for training 
     train_epochs = 10 # Number of epochs to train
-    recreate_dir = True # Create a directory for the model
     do_train = True # Whether to train the model
     # </settings>
     # create model dir to save the fine-tuned model

@@ -18,6 +18,7 @@ from .modeling_utils import (
     get_backward_attention_mask,
     use_res_connect,
     flip_tensor,
+    Pooler
 )
 from functools import partial
 from transformers.utils import TransformersKwargs, logging, auto_docstring
@@ -238,7 +239,8 @@ class LlamaForSequenceClassification(LlamaPreTrainedModel):
         
         # Simple classification head
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
-        
+        self.pooler = Pooler(pool_type=config.pool_type)
+
         # Initialize weights
         self.post_init()
 
@@ -260,12 +262,7 @@ class LlamaForSequenceClassification(LlamaPreTrainedModel):
         
         # Use last token's hidden state as sentence representation
         # If there's no padding, use the last token; otherwise use the last non-padded token
-        if attention_mask is not None:
-            sequence_lengths = attention_mask.sum(dim=1) - 1  # Get actual sequence lengths
-            batch_indices = torch.arange(hidden_states.size(0), device=hidden_states.device)
-            pooled_output = hidden_states[batch_indices, sequence_lengths]
-        else:
-            pooled_output = hidden_states[:, -1]  # Use last token
+        pooled_output = self.pooler(hidden_states, attention_mask)
         
         # Classification
         logits = self.classifier(pooled_output)
