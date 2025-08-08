@@ -57,30 +57,31 @@ class ModelLoader:
         tokenizer.padding_side = 'right'
         
         # Prepare configuration - add custom Llama config if it's a Llama model
-        config = None
-        if 'llama' in model_path.lower() or 'llama' in str(model_path).lower():
+        config = AutoConfig.from_pretrained(model_path)
+        if 'llama' in str(model_path).lower():
             print("Detected Llama model - preparing custom configuration...")
             config = self._prepare_custom_llama_config(model_path, labels, label2id, id2label, tokenizer, **model_args)
             tokenizer.pad_token = tokenizer.eos_token
+            model = AutoModelForSequenceClassification.from_pretrained(
+                model_path,
+                config=config,  # Use custom config for Llama
+                quantization_config=self.bnb_config if torch.cuda.is_available() else None,
+                device_map=device_map, 
+            )
             model.config.pad_token_id = tokenizer.pad_token_id
-        config.num_labels = len(labels) if labels else 2
-        # Always use AutoModelForSequenceClassification for sequence classification tasks
-        print("Loading with AutoModelForSequenceClassification...")
-        model = AutoModelForSequenceClassification.from_pretrained(
-            model_path,
-            config=config,  # Pass custom config if it's a Llama model
-            quantization_config=self.bnb_config if torch.cuda.is_available() else None,
-            device_map=device_map, 
-        ) 
-
         
+        else:
+            print("Loading with AutoModelForSequenceClassification...")
+            model = AutoModelForSequenceClassification.from_pretrained(
+                model_path,
+                config=config,  # Pass custom config if it's a Llama model
+                quantization_config=self.bnb_config if torch.cuda.is_available() else None,
+                device_map=device_map, 
+            ) 
+
+        config.num_labels = len(labels) if labels else 2
         model.config.id2label = id2label
         model.config.label2id = label2id
-        print("PAD token ID:", model.config.pad_token_id)
-        # Handle Mistral specific configuration
-        if 'Mistral' in model_path:
-            model.config.sliding_window = 4096
-        setattr(model, 'accepts_loss_kwargs', False)  # Ensure Trainer does not pass unexpected kwargs
         return model, tokenizer
     
     def _prepare_custom_llama_config(self, model_path: str, labels=None, label2id=None, 
@@ -88,34 +89,28 @@ class ModelLoader:
         """
         Prepare custom Llama configuration with backward supported arguments for AutoModelForSequenceClassification
         """
-        try:
-            # Load configuration
-            print("Loading LlamaConfig...")
-            config = LlamaConfig.from_pretrained(model_path)
-            
-            # Set up quantization parameters
-            print("Setting up model arguments...")
-            # Create backward supported arguments
-            backward_args = BackwardSupportedArguments(**model_args)
-            
-            # Update config with backward arguments
-            for key, value in backward_args.to_dict().items():
-                if hasattr(config, key):
-                    setattr(config, key, value)
-            
-            # Set classification specific config
-            config.num_labels = len(labels) if labels else 2
-            config.id2label = id2label
-            config.label2id = label2id
-            config.pad_token_id = tokenizer.pad_token_id if tokenizer else None
-            
-            print(f"Custom Llama config prepared. Num labels: {config.num_labels}")
-            print(f"Architecture: {getattr(config, 'architecture', 'NONE')}")
-            
-            return config
-            
-        except Exception as e:
-            print(f"Error preparing custom Llama config: {e}")
-            print("Falling back to standard config loading...")
-            return None
-    
+
+        # Load configuration
+        print("Loading LlamaConfig...")
+        config = LlamaConfig.from_pretrained(model_path)
+        
+        # Set up quantization parameters
+        print("Setting up model arguments...")
+        # Create backward supported arguments
+        backward_args = BackwardSupportedArguments(**model_args)
+        
+        # Update config with backward arguments
+        for key, value in backward_args.to_dict().items():
+            setattr(config, key, value)
+        
+        # Set classification specific config
+        config.num_labels = len(labels) if labels else 2
+        config.id2label = id2label
+        config.label2id = label2id
+        config.pad_token_id = tokenizer.pad_token_id if tokenizer else None
+        
+        print(f"Custom Llama config prepared. Num labels: {config.num_labels}")
+        print(f"Architecture: {getattr(config, 'architecture', 'NONE')}")
+        
+        return config
+ 

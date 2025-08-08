@@ -97,7 +97,7 @@ def main():
     ############################################################################
     # load model from path
     # <settings>
-    model_path = 'meta-llama/Llama-3.2-1B'  
+    model_path = 'meta-llama/Llama-3.2-1B-Instruct'  
 
     use_multi_gpu = True  
     if use_multi_gpu:
@@ -115,15 +115,10 @@ def main():
     model_args = {
         'architecture': 'INPLACE',  # Type of architecture: NONE, INPLACE, EXTEND, INTER, EXTRA
         'mask_type': 'MASK0',  # Type of sink mask: MASK0, BACK
-        'num_unsink_layers': 10,  # Number of layers to change to unsink attention
+        'num_unsink_layers': 0,  # Number of layers to change to unsink attention
         'num_bidir_layers': 0,  # Number of layers to change to bidirectional attention
         'unsink_layers': None,  # Manually set specific layers to change to unsink attention
         'bidir_layers': None,  # Manually set specific layers to change to bidirectional attention
-        'res_connect': None,  # Use ResConnect in Model
-        'freeze_type': None,  # Freeze type: all, backbone, default, false/none
-        'num_unfreeze_layers': 0,  # Unfreeze layers starting from the last layer
-        'model_init': True,  # Whether to initialize extended layers using forward params
-        'num_classifier_layers': 1,  # Layers of classifiers
     }
     # </settings>
     model_loader = ModelLoader()
@@ -171,7 +166,7 @@ def main():
     lora_dropout = 0.1 # Dropout probability for LoRA layers
     learning_rate = 2e-4 # Learning rate
     per_device_train_batch_size = 16# Batch size per GPU for training 
-    train_epochs = 10 # Number of epochs to train
+    train_epochs = 8 # Number of epochs to train
     do_train = True # Whether to train the model
     # </settings>
     # create model dir to save the fine-tuned model

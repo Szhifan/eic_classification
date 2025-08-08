@@ -105,20 +105,18 @@ class ModelFinetuner:
         else:
             print("Using CPU for training")
 
-        is_bert = True if "bert" in base_model_path.lower() else False
-        # Prepare the model for training
-        if not is_bert:
-            model = prepare_model_for_kbit_training(model)
 
-            peft_config = LoraConfig(
-                r = lora_r,
-                lora_alpha = lora_alpha,
-                target_modules = target_modules,
-                lora_dropout = lora_dropout,
-                bias = bias,
-                task_type = task_type,
-            )
-            model = get_peft_model(model, peft_config)
+        model = prepare_model_for_kbit_training(model)
+
+        peft_config = LoraConfig(
+            r = lora_r,
+            lora_alpha = lora_alpha,
+            target_modules = target_modules,
+            lora_dropout = lora_dropout,
+            bias = bias,
+            task_type = task_type,
+        )
+        model = get_peft_model(model, peft_config)
             
 
         # Print information about the percentage of trainable parameters

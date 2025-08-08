@@ -40,7 +40,7 @@ class Evaluater:
         
         return model, tokenizer
 
-    def predict(self, test, model, tokenizer, id2label, output_dir):
+    def predict(self, test, model, tokenizer, id2label, output_dir, batch_size=32):
         eval_file = output_dir / "eval_pred.csv"
         print('eval_file', eval_file)
         if eval_file.exists():
@@ -49,35 +49,53 @@ class Evaluater:
         # Check model's data type by examining the first parameter
         model_dtype = next(model.parameters()).dtype
         
-        for i in tqdm(range(len(test))):
-            # Ensure inputs are on cuda:0 to match the model
-            inputs = collate_fn([test[i]], device='cuda:0', tokenizer=tokenizer)
+        # Process data in batches
+        all_results = []
+        num_batches = (len(test) + batch_size - 1) // batch_size
+        
+        for batch_idx in tqdm(range(num_batches), desc="Processing batches"):
+            start_idx = batch_idx * batch_size
+            end_idx = min(start_idx + batch_size, len(test))
+            batch_samples = test[start_idx:end_idx]
             
-            # Debug: print model and input dtypes (only for first iteration)
-            if i == 0:
+            # Use collate_fn to prepare batch inputs
+            inputs = collate_fn(batch_samples, device='cuda:0', tokenizer=tokenizer)
+            
+            # Debug: print model and input dtypes (only for first batch)
+            if batch_idx == 0:
                 print(f"model_dtype {model_dtype}")
                 print(f"input dtypes: {[(k, v.dtype) for k, v in inputs.items()]}")
                 print(f"input devices: {[(k, v.device) for k, v in inputs.items()]}")
+                print(f"batch_size: {len(batch_samples)}, input_shape: {inputs['input_ids'].shape}")
             
             with torch.no_grad():
                 logits = model(**inputs, return_dict=True).logits
-               
-            predicted_class_id = logits.argmax().item()
-            pred = id2label[int(predicted_class_id)]
-
-            a = {'doc_name':[test[i]['doc_name']], 
-                    'node_ix_src':[test[i]['node_ix_src']], 
-                    'node_ix_tgt':[test[i]['node_ix_tgt']], 
-                    'true':[id2label[test[i]['label']]],
-                    'pred':[pred],
-                    }
-            a = pd.DataFrame(a)
-            a.to_csv(eval_file,mode="a",index=False,header=not eval_file.exists())
+            
+            # Process predictions for the entire batch
+            predicted_class_ids = logits.argmax(dim=1).cpu().numpy()
+            
+            # Create results for this batch
+            for i, sample_idx in enumerate(range(start_idx, end_idx)):
+                sample = test[sample_idx]
+                pred = id2label[int(predicted_class_ids[i])]
+                
+                result = {
+                    'doc_name': sample['doc_name'],
+                    'node_ix_src': sample['node_ix_src'], 
+                    'node_ix_tgt': sample['node_ix_tgt'],
+                    'true': id2label[sample['label']],
+                    'pred': pred,
+                }
+                all_results.append(result)
+        
+        # Save all results at once
+        results_df = pd.DataFrame(all_results)
+        results_df.to_csv(eval_file, index=False)
         
 
     def evaluate(self, test, model=None, tokenizer=None, model_dir=None, output_dir=None,  do_predict = True, 
                  labels=None, label2id=None, id2label=None, 
-                 emb_type=None, input_type=None, response_key = None):
+                 emb_type=None, input_type=None, response_key = None, batch_size=32):
         """
         Evaluate the model on the test set
         :param test: Test set
@@ -92,6 +110,7 @@ class Evaluater:
         :param emb_type: transformation function, None for SeqC
         :param input_type: Type of input text
         :param response_key: Response key, None for SeqC
+        :param batch_size: Batch size for prediction
         """
         # load the model
         if model is None or tokenizer is None:
@@ -101,7 +120,7 @@ class Evaluater:
         if output_dir is None:
                 output_dir = Path(model_dir)
         if do_predict:
-            self.predict(test, model, tokenizer, id2label, output_dir)
+            self.predict(test, model, tokenizer, id2label, output_dir, batch_size=batch_size)
         end_time = pd.Timestamp.now()
         inference_time = end_time - start_time
         inference_time = inference_time.total_seconds()
