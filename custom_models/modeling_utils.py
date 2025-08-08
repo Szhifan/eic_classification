@@ -126,7 +126,7 @@ class BackwardSupportedArguments:
     use_quantization: bool = field(
         default=True, metadata={"help": "Whether to use 4-bit quantization"}
     )
-    use_latent_attn: bool = field(
+    use_latent_attention: bool = field(
         default=False, metadata={"help": "Whether to use late attention"}
     )
 
@@ -187,6 +187,7 @@ class BackwardSupportedArguments:
             bnb_4bit_use_double_quant=True,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.float16,
+            llm_int8_skip_modules=["classifier", "latent_attention", "pooler", "score"],  # Skip quantization for custom layers
         )
 
     def get_suffix(self, training_args=None):
@@ -302,6 +303,10 @@ def get_custom_model(model_args, config, MODEL_TYPE=AutoModel):
             
     logger.info("All parameters:")
     logger.info(sum(p.numel() for p in model.parameters()))
+    
+    # Ensure custom layers use float32 precision to avoid quantization issues
+    _ensure_custom_layers_precision(model)
+    
     if getattr(config, "freeze_type", False):
         if hasattr(model.base_model, "freeze_model"):
             model.base_model.freeze_model(config)
@@ -314,6 +319,31 @@ def get_custom_model(model_args, config, MODEL_TYPE=AutoModel):
             if param.requires_grad:
                 logger.info(name)
     return model
+
+def _ensure_custom_layers_precision(model):
+    """
+    Ensure custom layers (classifier, latent_attention, pooler) use float32 precision
+    to avoid quantization issues with bitsandbytes
+    """
+    custom_layer_names = ["classifier", "latent_attention", "pooler", "score"]
+    
+    for name in custom_layer_names:
+        if hasattr(model, name):
+            layer = getattr(model, name)
+            if layer is not None:
+                layer = layer.float()
+                setattr(model, name, layer)
+                for param in layer.parameters():
+                    param.requires_grad_(True)
+                logger.info(f"Set {name} layer to float32 precision")
+    
+    # Also check for nested custom layers in submodules
+    for module_name, module in model.named_modules():
+        if any(custom_name in module_name for custom_name in custom_layer_names):
+            module = module.float()
+            for param in module.parameters():
+                param.requires_grad_(True)
+            logger.info(f"Set custom module {module_name} to float32 precision")
 
 def get_noncausal_attention_mask(self, attention_mask, input_shape, device=None, dtype=None):
     """

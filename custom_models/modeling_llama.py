@@ -238,13 +238,33 @@ class LlamaForSequenceClassification(LlamaPreTrainedModel):
         # Use the custom LlamaModel as backbone
         self.model = LlamaModel(config)
         
-        # Simple classification head
+        # Simple classification head - ensure float32 precision to avoid quantization issues
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.latent_attention = LatentAttention(config.hidden_size) if getattr(config, 'use_latent_attention', False) else None
         self.pooler = Pooler(pool_type=getattr(config, 'pool_type', 'avg'))
 
         # Initialize weights
         self.post_init()
+        
+        # Ensure classifier and latent_attention are in float32 to avoid quantization issues
+        self._ensure_float32_precision()
+
+    def _ensure_float32_precision(self):
+        """
+        Ensure classifier and latent_attention layers use float32 precision
+        to avoid quantization issues with bitsandbytes
+        """
+        # Set classifier to float32
+        if hasattr(self, 'classifier') and self.classifier is not None:
+            self.classifier = self.classifier.float()
+            for param in self.classifier.parameters():
+                param.requires_grad_(True)
+        
+        # Set latent_attention to float32  
+        if hasattr(self, 'latent_attention') and self.latent_attention is not None:
+            self.latent_attention = self.latent_attention.float()
+            for param in self.latent_attention.parameters():
+                param.requires_grad_(True)
 
     def forward(
         self,
