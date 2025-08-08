@@ -88,7 +88,7 @@ class BackwardSupportedArguments:
         metadata={"help": "Manually set specific layers to change to bidirectional attention."}
     )
     res_connect: Optional[int] = field(
-        default=3,
+        default=None,
         metadata={"help": "Use ResConnect in Model."}
     )
     freeze_type: Optional[str] = field(
@@ -126,6 +126,10 @@ class BackwardSupportedArguments:
     use_quantization: bool = field(
         default=True, metadata={"help": "Whether to use 4-bit quantization"}
     )
+    use_latent_attn: bool = field(
+        default=False, metadata={"help": "Whether to use late attention"}
+    )
+
     def __post_init__(self):
         if self.unsink_layers is None or self.unsink_layers.lower() in ("none", "false", "f", "no", "n", "[]", "{}", "()"):
             self.unsink_layers = []
@@ -482,3 +486,57 @@ class PlaceHolder(nn.Module):
 
     def load_state_dict(self, state_dict, strict = True, assign = False):
         pass
+class LatentAttention(nn.Module):
+    """
+    Latent Attention module where the query is the last hidden representation of an LLM,
+    whereas key and value are learnable parameters.
+    """
+    def __init__(self, hidden_dim, num_latent_vectors=512, dropout_prob=0.1):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.num_latent_vectors = num_latent_vectors
+        
+        # Learnable key and value parameters
+        self.key = nn.Parameter(torch.randn(num_latent_vectors, hidden_dim))
+        self.value = nn.Parameter(torch.randn(num_latent_vectors, hidden_dim))
+        
+        # Layer normalization and dropout
+        self.layer_norm = nn.LayerNorm(hidden_dim)
+        self.dropout = nn.Dropout(dropout_prob)
+        
+        # Multi-head attention with 1 head
+        self.attention = nn.MultiheadAttention(
+            embed_dim=hidden_dim,
+            num_heads=8,
+            dropout=dropout_prob,
+            batch_first=True
+        )
+        
+        # Initialize parameters
+        nn.init.xavier_uniform_(self.key)
+        nn.init.xavier_uniform_(self.value)
+
+    def forward(self, hidden_states):
+        """
+        Args:
+            hidden_states: Hidden representation from LLM [batch_size, seq_len, hidden_dim]
+        Returns:
+            context_vector: Attended output [batch_size, seq_len, hidden_dim]
+        """
+        batch_size, seq_len, _ = hidden_states.shape
+        
+        # Use hidden states as queries
+        query = hidden_states  # [batch_size, seq_len, hidden_dim]
+        
+        # Expand key and value for batch processing
+        key = self.key.unsqueeze(0).expand(batch_size, -1, -1)  # [batch_size, num_latent, hidden_dim]
+        value = self.value.unsqueeze(0).expand(batch_size, -1, -1)  # [batch_size, num_latent, hidden_dim]
+        
+        # Apply multi-head attention
+        context, _ = self.attention(query, key, value)  # [batch_size, seq_len, hidden_dim]
+        
+        # Apply layer normalization and residual connection
+        context = self.layer_norm(context + hidden_states)
+        context = self.dropout(context)
+        
+        return context

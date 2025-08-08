@@ -6,3 +6,4 @@ __pycache__/
 *.pkl
 *.log
 *.json
+test_mini_llama.py

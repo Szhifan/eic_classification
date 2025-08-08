@@ -114,6 +114,7 @@ class ModelFinetuner:
             target_modules = target_modules,
             lora_dropout = lora_dropout,
             bias = bias,
+            modules_to_save= ["score", "latent_attention", "pooler"],
             task_type = task_type,
         )
         model = get_peft_model(model, peft_config)
@@ -140,7 +141,7 @@ class ModelFinetuner:
                 group_by_length=False,
                 lr_scheduler_type="cosine",               # use cosine learning rate scheduler
                 # report_to="wandb",                  # report metrics to wandb
-                evaluation_strategy="epoch",              # save checkpoint every epoch
+                eval_strategy="epoch",              # save checkpoint every epoch
                 save_strategy="epoch",
                 gradient_checkpointing=True, # use gradient checkpointing for 4-bit models
                 gradient_checkpointing_kwargs = {"use_reentrant": False}, #must be false for DDP

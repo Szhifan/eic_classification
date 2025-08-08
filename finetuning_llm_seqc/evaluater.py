@@ -56,17 +56,20 @@ class Evaluater:
         for batch_idx in tqdm(range(num_batches), desc="Processing batches"):
             start_idx = batch_idx * batch_size
             end_idx = min(start_idx + batch_size, len(test))
-            batch_samples = test[start_idx:end_idx]
             
+            # Get batch samples - handle HuggingFace Dataset indexing properly
+            batch_indices = list(range(start_idx, end_idx))
+            batch_samples = test.select(batch_indices)
+            
+            # Convert to list of dictionaries for collate_fn
+            batch_samples_list = []
+            for i in range(len(batch_samples)):
+                batch_samples_list.append(batch_samples[i])
+            
+            # Debug: print the type and structure of the first sample
+
             # Use collate_fn to prepare batch inputs
-            inputs = collate_fn(batch_samples, device='cuda:0', tokenizer=tokenizer)
-            
-            # Debug: print model and input dtypes (only for first batch)
-            if batch_idx == 0:
-                print(f"model_dtype {model_dtype}")
-                print(f"input dtypes: {[(k, v.dtype) for k, v in inputs.items()]}")
-                print(f"input devices: {[(k, v.device) for k, v in inputs.items()]}")
-                print(f"batch_size: {len(batch_samples)}, input_shape: {inputs['input_ids'].shape}")
+            inputs = collate_fn(batch_samples_list, device='cuda:0', tokenizer=tokenizer)
             
             with torch.no_grad():
                 logits = model(**inputs, return_dict=True).logits
@@ -91,7 +94,7 @@ class Evaluater:
         # Save all results at once
         results_df = pd.DataFrame(all_results)
         results_df.to_csv(eval_file, index=False)
-        
+            
 
     def evaluate(self, test, model=None, tokenizer=None, model_dir=None, output_dir=None,  do_predict = True, 
                  labels=None, label2id=None, id2label=None, 

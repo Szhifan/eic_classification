@@ -116,9 +116,9 @@ def main():
         'architecture': 'INPLACE',  # Type of architecture: NONE, INPLACE, EXTEND, INTER, EXTRA
         'mask_type': 'MASK0',  # Type of sink mask: MASK0, BACK
         'num_unsink_layers': 0,  # Number of layers to change to unsink attention
-        'num_bidir_layers': 0,  # Number of layers to change to bidirectional attention
-        'unsink_layers': None,  # Manually set specific layers to change to unsink attention
-        'bidir_layers': None,  # Manually set specific layers to change to bidirectional attention
+        'num_bidir_layers': 10,  # Number of layers to change to bidirectional attention
+        'pool_type': 'avg',  # Pooling type: weightedavg, avg, max, cls
+        'use_latent_attention': True,  # Whether to use latent attention
     }
     # </settings>
     model_loader = ModelLoader()

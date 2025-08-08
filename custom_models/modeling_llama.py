@@ -18,7 +18,8 @@ from .modeling_utils import (
     get_backward_attention_mask,
     use_res_connect,
     flip_tensor,
-    Pooler
+    Pooler,
+    LatentAttention
 )
 from functools import partial
 from transformers.utils import TransformersKwargs, logging, auto_docstring
@@ -239,7 +240,8 @@ class LlamaForSequenceClassification(LlamaPreTrainedModel):
         
         # Simple classification head
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
-        self.pooler = Pooler(pool_type=config.pool_type)
+        self.latent_attention = LatentAttention(config.hidden_size) if getattr(config, 'use_latent_attention', False) else None
+        self.pooler = Pooler(pool_type=getattr(config, 'pool_type', 'avg'))
 
         # Initialize weights
         self.post_init()
@@ -265,8 +267,8 @@ class LlamaForSequenceClassification(LlamaPreTrainedModel):
         # Get hidden states
         hidden_states = outputs[0]  # (batch_size, seq_len, hidden_size)
         
-        # Use last token's hidden state as sentence representation
-        # If there's no padding, use the last token; otherwise use the last non-padded token
+        if self.latent_attention is not None:
+            hidden_states = self.latent_attention(hidden_states)
         pooled_output = self.pooler(hidden_states, attention_mask)
         
         # Classification
